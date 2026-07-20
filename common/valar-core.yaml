@@ -2,22 +2,27 @@
 # Valar Motion — ESPHome firmware (shared core)
 # =============================================================================
 #
-# Board-independent core shared by every Valar Motion controller. Each per-board
-# file (boards/val3000/…, boards/val3100/…, boards/val3101/…) sets the chip
-# variant, the GPIO pin map, and the OTA asset name via substitutions, then
-# pulls this file in as a package:
+# Board-independent core shared by every Valar Motion controller and every
+# product built on the boards. Each per-board / per-product file sets the chip,
+# GPIO pin map, and OTA identity via substitutions, then pulls this file in as a
+# package:
 #
-#   substitutions: { board_variant: …, pin_uart_tx: …, ota_asset: …, … }
+#   substitutions: { device_name: …, pin_uart_tx: …, ota_asset: …, board_id: … }
 #   packages: { core: !include ../../common/valar-core.yaml }
+#
+# LAYERS (see docs/FIRMWARE-POLICY.md):
+#   1. valar-core.yaml  — THIS FILE. Universal: board infra, TMC2209 driver,
+#      buttons, tuning, web UI, GitHub-OTA, diagnostics. Every build includes it.
+#   2. common/scheduling.yaml — OPT-IN mixin (sun / time / open-close schedule).
+#      Include it only when a product wants scheduling; it calls the product's
+#      `schedule_open` / `schedule_close` scripts.
+#   3. product layer — cover / homing / product-specific hardware, in the
+#      product repo.
 #
 # A Wi-Fi (and, on the C6 boards, Thread/Zigbee-capable) stepper motor
 # controller built around a TMC2209 driver. Control it from a browser at
-# http://${device_prefix}-XXXXXX.local (XXXXXX = last 3 bytes of the MAC,
-# printed on the serial log at boot). No Home Assistant required; pairs with
-# HA over the native ESPHome API when you want automation.
-#
-# Behaviour lives HERE and is identical across boards. Edit a per-board file
-# ONLY for that board's hardware specifics (pins, status LED, encoder).
+# http://${device_name}-XXXXXX.local (XXXXXX = last 3 bytes of the MAC) — no
+# Home Assistant required; pairs with HA over the native ESPHome API.
 #
 # -----------------------------------------------------------------------------
 # Hardware (common to the family)
@@ -28,15 +33,20 @@
 #   Flash  : USB-C (Improv over serial for Wi-Fi provisioning)
 #
 # GPIO signals (concrete pins supplied per-board via substitutions):
-#   UART TX  -> TMC2209 PDN_UART   ${pin_uart_tx}
-#   UART RX  <- TMC2209 PDN_UART   ${pin_uart_rx}
-#   ENN       (enable, active-low) ${pin_enn}
-#   DIAG      (StallGuard/fault)   ${pin_diag}
-#   INDEX     (step counter)       ${pin_index}
-#   Button 1  (close / home)       ${pin_btn1}
-#   Button 2  (open)               ${pin_btn2}
-#   Button 3  (Wi-Fi reset)        ${pin_btn_wifi}
+#   UART TX -> ${pin_uart_tx}   UART RX <- ${pin_uart_rx}   ENN ${pin_enn}
+#   DIAG ${pin_diag}   INDEX ${pin_index}
+#   Button 1 ${pin_btn1}   Button 2 ${pin_btn2}   Button 3 (Wi-Fi reset) ${pin_btn_wifi}
 # =============================================================================
+
+# Default substitutions — overridable by the including board/product file.
+#   ota_repo   : GitHub owner/repo the "Update Firmware (GitHub)" button pulls
+#                from. Generic board builds self-update from valar-motion's own
+#                releases; a product overrides this to its own repo so its field
+#                units keep fetching Product-*.ota.bin from where they always have.
+#   fw_version : shown in the Diagnostics group; a product/release overrides it.
+substitutions:
+  ota_repo: "Valar-Systems/valar-motion"
+  fw_version: "dev"
 
 external_components:
   # Pinned to a specific commit so every rebuild is reproducible. Bump only
@@ -48,26 +58,38 @@ esphome:
   name: ${device_name}
   friendly_name: ${friendly_name}
   name_add_mac_suffix: true
+  # Explicit priority trigger (not the bare-action shorthand) so the optional
+  # scheduling mixin's own late-priority on_boot trigger merges cleanly via
+  # package concatenation instead of colliding with an action list.
   on_boot:
-    - tmc2209.configure:
-        direction: !lambda return id(global_stepper_direction);
-        microsteps: 8
-        interpolation: true
-        tcool_threshold: !lambda "return id(global_tcoolthrs);"
-    - tmc2209.stallguard:
-        threshold: !lambda "return id(global_sgthrs);"
-    - tmc2209.currents:
-        standstill_mode: freewheeling
-        irun: !lambda "return id(global_irun);"
-        ihold: 0
-        tpowerdown: 0
-        iholddelay: 0
-    - stepper.set_speed:
-        id: driver
-        speed: !lambda "return id(global_speed);"
-    - stepper.set_acceleration:
-        id: driver
-        acceleration: !lambda "return id(global_acceleration);"
+    - priority: 600.0
+      then:
+        - tmc2209.configure:
+            direction: !lambda return id(global_stepper_direction);
+            microsteps: 8
+            interpolation: true
+            tcool_threshold: !lambda "return id(global_tcoolthrs);"
+        - tmc2209.stallguard:
+            threshold: !lambda "return id(global_sgthrs);"
+        - tmc2209.currents:
+            standstill_mode: freewheeling
+            irun: !lambda "return id(global_irun);"
+            ihold: 0
+            tpowerdown: 0
+            iholddelay: 0
+        - stepper.set_speed:
+            id: driver
+            speed: !lambda "return id(global_speed);"
+        - stepper.set_acceleration:
+            id: driver
+            acceleration: !lambda "return id(global_acceleration);"
+        # Publish the static diagnostic strings once (update_interval: never).
+        - text_sensor.template.publish:
+            id: firmware_version_text
+            state: "${fw_version}"
+        - text_sensor.template.publish:
+            id: board_text
+            state: "${board_id}"
 
 esp32:
   board: ${esp_board}
@@ -82,11 +104,51 @@ captive_portal:
 improv_serial:    # Wi-Fi setup over USB-C at https://web.esphome.io
 
 api:              # no encryption key -> discoverable/adoptable out of the box
+
+# Over-the-air updates. `esphome` handles dashboard/CLI uploads; `http_request`
+# powers the "Update Firmware (GitHub)" button below (pull latest release asset).
 ota:
   - platform: esphome
+  - platform: http_request
+
+# REQUIRED for http_request OTA to survive a power loss: ESP-IDF app-rollback
+# boots a freshly-OTA'd image as PENDING_VERIFY and reverts it on the next reset
+# unless it's marked valid. safe_mode marks it valid ~1 min after a healthy boot
+# (and adds boot-loop recovery). Without it, GitHub-OTA updates silently revert.
+safe_mode:
+
+# HTTP client for the GitHub-OTA button. verify_ssl off (no bundled CA); larger
+# buffers because GitHub 302-redirects to a long signed CDN URL that overflows
+# the 512-byte default ("Out of buffer"); generous timeout for the ~1 MB image.
+http_request:
+  verify_ssl: false
+  timeout: 10min
+  buffer_size_rx: 4096
+  buffer_size_tx: 4096
 
 logger:
   hardware_uart: ${log_uart}   # keep logs + Improv on the USB-C port
+  # The chatty number/text_sensor/sensor entities re-publish every update_interval
+  # and would flood the log at idle; raise just those tags to INFO. Live values
+  # are still visible in the web UI / HA — only routine log spam is hidden.
+  logs:
+    number: INFO
+    text_sensor: INFO
+    sensor: INFO
+
+# Browser-based control panel at http://${device_name}-XXXXXX.local — exposes
+# every entity without Home Assistant. version 3 = grouped, collapsible UI; each
+# entity picks a group via web_server.sorting_group_id. The optional scheduling
+# mixin appends its own "Schedule" group to this list via package merge.
+web_server:
+  port: 80
+  version: 3
+  sorting_groups:
+    - { id: group_control,     name: "Control",       sorting_weight: 10 }
+    - { id: group_setup,       name: "Setup",         sorting_weight: 20 }
+    - { id: group_motion,      name: "Motion Tuning", sorting_weight: 30 }
+    - { id: group_stallguard,  name: "StallGuard",    sorting_weight: 40 }
+    - { id: group_diagnostics, name: "Diagnostics",   sorting_weight: 60 }
 
 # --- Shared state -----------------------------------------------------------
 globals:
@@ -117,6 +179,10 @@ stepper:
     enn_pin: ${pin_enn}
     index_pin: ${pin_index}
     diag_pin: ${pin_diag}
+    # NOTE (rewire): products that need a different stall response (e.g. the
+    # Ropener zeroes/reports position for homing) will override this hook. The
+    # exact override mechanism (!extend vs. a script contract) gets prototyped
+    # during the Ropener rewire — this default stays put for the generic build.
     on_stall:
       - stepper.stop: driver
       - stepper.report_position: { id: driver, position: 0 }
@@ -125,6 +191,7 @@ stepper:
 binary_sensor:
   - platform: gpio
     name: "Button 1"
+    web_server: { sorting_weight: 1, sorting_group_id: group_control }
     pin:
       number: ${pin_btn1}
       mode: INPUT
@@ -140,6 +207,7 @@ binary_sensor:
         - logger.log: "Homed (position zeroed)"
   - platform: gpio
     name: "Button 2"
+    web_server: { sorting_weight: 2, sorting_group_id: group_control }
     pin:
       number: ${pin_btn2}
       mode: INPUT
@@ -148,6 +216,7 @@ binary_sensor:
       - delayed_on: 10ms
   - platform: gpio
     name: "Button 3 (Wi-Fi reset)"
+    web_server: { sorting_weight: 3, sorting_group_id: group_control }
     pin:
       number: ${pin_btn_wifi}
       mode: INPUT
@@ -159,6 +228,7 @@ binary_sensor:
 number:
   - platform: template
     name: "Speed"
+    web_server: { sorting_weight: 1, sorting_group_id: group_motion }
     min_value: 100
     max_value: 10000
     step: 100
@@ -171,6 +241,7 @@ number:
       - stepper.set_speed: { id: driver, speed: !lambda "return id(global_speed);" }
   - platform: template
     name: "Acceleration"
+    web_server: { sorting_weight: 2, sorting_group_id: group_motion }
     min_value: 100
     max_value: 10000
     step: 100
@@ -183,6 +254,7 @@ number:
       - stepper.set_acceleration: { id: driver, acceleration: !lambda "return id(global_acceleration);" }
   - platform: template
     name: "IRUN (motor current)"
+    web_server: { sorting_weight: 1, sorting_group_id: group_stallguard }
     min_value: 1
     max_value: 31
     step: 1
@@ -195,6 +267,7 @@ number:
       - tmc2209.currents: { irun: !lambda "return id(global_irun);" }
   - platform: template
     name: "SGTHRS (stall threshold)"
+    web_server: { sorting_weight: 2, sorting_group_id: group_stallguard }
     min_value: 0
     max_value: 255
     step: 1
@@ -206,21 +279,113 @@ number:
       - globals.set: { id: global_sgthrs, value: !lambda "return x;" }
       - lambda: id(driver)->write_register(SGTHRS, x);
 
-switch:
+# Motor Direction — a mirror of global_stepper_direction (single source of truth,
+# applied in on_boot). Modelled as a SELECT, not a switch: a template switch
+# defaults to an ALWAYS_OFF restore that re-runs turn_off_action every boot and
+# would clobber the restored direction back to CLOCKWISE. The select carries no
+# state of its own — it reads the global and writes it on change — so it never
+# fights the restored value.
+select:
   - platform: template
     name: "Motor Direction"
+    web_server: { sorting_weight: 1, sorting_group_id: group_setup }
     entity_category: CONFIG
-    optimistic: true
-    turn_on_action:
-      - globals.set: { id: global_stepper_direction, value: 'esphome::tmc2209::ShaftDirection::COUNTERCLOCKWISE' }
-      - tmc2209.configure: { direction: !lambda return id(global_stepper_direction); }
-    turn_off_action:
-      - globals.set: { id: global_stepper_direction, value: 'esphome::tmc2209::ShaftDirection::CLOCKWISE' }
-      - tmc2209.configure: { direction: !lambda return id(global_stepper_direction); }
+    update_interval: 1s
+    options:
+      - "Normal"
+      - "Reversed"
+    lambda: |-
+      if (id(global_stepper_direction) == esphome::tmc2209::ShaftDirection::COUNTERCLOCKWISE)
+        return std::string("Reversed");
+      return std::string("Normal");
+    set_action:
+      - lambda: |-
+          id(global_stepper_direction) = (x.find("Reversed") != std::string::npos)
+            ? esphome::tmc2209::ShaftDirection::COUNTERCLOCKWISE
+            : esphome::tmc2209::ShaftDirection::CLOCKWISE;
+      - tmc2209.configure:
+          direction: !lambda return id(global_stepper_direction);
+      - lambda: |-
+          // Persist immediately: update() stages the changed global, sync()
+          // flushes NVS now so the choice survives an unplug seconds later.
+          global_stepper_direction->update();
+          global_preferences->sync();
+
+button:
+  # Pull the latest released firmware for this build straight from GitHub and
+  # flash it OTA. Points at the version-less "latest" asset so the URL never
+  # changes between releases. ${ota_repo}/${ota_asset} make the target
+  # per-build: generic boards -> valar-motion/valXXXX; a product overrides
+  # ota_repo/ota_asset to keep its own field-OTA URL byte-for-byte stable.
+  - platform: template
+    name: "Update Firmware (GitHub)"
+    web_server: { sorting_weight: 7, sorting_group_id: group_diagnostics }
+    entity_category: DIAGNOSTIC
+    on_press:
+      - logger.log: "Checking GitHub for the latest firmware..."
+      - ota.http_request.flash:
+          md5_url: https://github.com/${ota_repo}/releases/latest/download/${ota_asset}.ota.bin.md5
+          url: https://github.com/${ota_repo}/releases/latest/download/${ota_asset}.ota.bin
+  - platform: restart
+    name: "Restart"
+    web_server: { sorting_weight: 8, sorting_group_id: group_diagnostics }
+    entity_category: DIAGNOSTIC
+
+text_sensor:
+  # Static strings published once from on_boot (update_interval: never).
+  - platform: template
+    name: "Firmware Version"
+    id: firmware_version_text
+    icon: "mdi:chip"
+    entity_category: DIAGNOSTIC
+    web_server: { sorting_weight: 4, sorting_group_id: group_diagnostics }
+    update_interval: never
+  - platform: template
+    name: "Board"
+    id: board_text
+    icon: "mdi:developer-board"
+    entity_category: DIAGNOSTIC
+    web_server: { sorting_weight: 6, sorting_group_id: group_diagnostics }
+    update_interval: never
+  - platform: wifi_info
+    ip_address:
+      name: "IP Address"
+      entity_category: DIAGNOSTIC
+      web_server: { sorting_weight: 10, sorting_group_id: group_diagnostics }
+    ssid:
+      name: "Connected SSID"
+      entity_category: DIAGNOSTIC
+      web_server: { sorting_weight: 11, sorting_group_id: group_diagnostics }
+    mac_address:
+      name: "MAC Address"
+      entity_category: DIAGNOSTIC
+      web_server: { sorting_weight: 12, sorting_group_id: group_diagnostics }
 
 sensor:
+  # TMC2209 register readouts — tune StallGuard by watching SG_RESULT under load.
   - platform: template
     name: "SG_RESULT"
     lambda: return id(driver)->read_register(SG_RESULT);
     update_interval: 1s
     entity_category: DIAGNOSTIC
+    web_server: { sorting_weight: 1, sorting_group_id: group_diagnostics }
+  - platform: template
+    name: "TSTEP"
+    lambda: return id(driver)->read_register(TSTEP);
+    update_interval: 1s
+    entity_category: DIAGNOSTIC
+    web_server: { sorting_weight: 2, sorting_group_id: group_diagnostics }
+  # Standard device diagnostics.
+  - platform: wifi_signal
+    name: "WiFi Signal"
+    update_interval: 60s
+    entity_category: DIAGNOSTIC
+    web_server: { sorting_weight: 13, sorting_group_id: group_diagnostics }
+  - platform: uptime
+    name: "Uptime"
+    entity_category: DIAGNOSTIC
+    web_server: { sorting_weight: 14, sorting_group_id: group_diagnostics }
+  - platform: internal_temperature
+    name: "ESP Internal Temperature"
+    entity_category: DIAGNOSTIC
+    web_server: { sorting_weight: 15, sorting_group_id: group_diagnostics }

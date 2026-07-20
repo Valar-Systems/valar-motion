@@ -1,0 +1,233 @@
+# =============================================================================
+# Valar Motion — scheduling mixin (OPT-IN)
+# =============================================================================
+#
+# A daily open/close schedule (fixed times OR sunrise/sunset with offsets),
+# shared by products that want it. NOT part of valar-core — include it only when
+# a product wants scheduling, alongside the core:
+#
+#   packages:
+#     core:       !include ../../common/valar-core.yaml
+#     scheduling: !include ../../common/scheduling.yaml
+#
+# ---- CONTRACT --------------------------------------------------------------
+# This mixin decides WHEN to open/close; the PRODUCT decides HOW. The including
+# config MUST define two scripts, which this mixin calls:
+#
+#   script:
+#     - id: schedule_open
+#       then: [ ... open the product's cover ... ]
+#     - id: schedule_close
+#       then: [ ... close the product's cover ... ]
+#
+# The product's scripts own any product-specific guards (e.g. "don't move while
+# homing"). This file references neither the cover nor product state, so it works
+# unchanged for the Ropener (curtain) and Glasscalibur (window) alike.
+#
+# Adds a "Schedule" group to the core web UI (merged into core's web_server).
+# =============================================================================
+
+# Re-apply the persisted timezone and location after boot (priority -100 = late,
+# once the restored text/number values and the time/sun components are ready).
+esphome:
+  on_boot:
+    - priority: -100
+      then:
+        - lambda: |-
+            id(sntp_time)->set_timezone(id(tz_text).state);
+            id(sun_sun)->set_latitude(id(global_latitude));
+            id(sun_sun)->set_longitude(id(global_longitude));
+
+globals:
+  - { id: global_latitude,         type: float, restore_value: yes, initial_value: '0.0' }
+  - { id: global_longitude,        type: float, restore_value: yes, initial_value: '0.0' }
+  - { id: global_sun_open_offset,  type: int,   restore_value: yes, initial_value: '0' }
+  - { id: global_sun_close_offset, type: int,   restore_value: yes, initial_value: '0' }
+  # Last daylight state the sun schedule acted on (-1 = unknown; forces a
+  # re-evaluation on boot and whenever location/offsets change).
+  - { id: global_sun_last_desired, type: int,   restore_value: no,  initial_value: '-1' }
+
+# SNTP clock (UTC); local time comes from the runtime-set Timezone below.
+time:
+  - platform: sntp
+    id: sntp_time
+    timezone: "UTC0"
+
+# Sunrise/sunset from the device location (pushed in from the Latitude/Longitude
+# numbers below and re-applied in on_boot).
+sun:
+  id: sun_sun
+  latitude: 0°
+  longitude: 0°
+
+# Append a "Schedule" group to core's web UI (package merge concatenates
+# sorting_groups; port/version come from core's web_server).
+web_server:
+  sorting_groups:
+    - { id: group_schedule, name: "Schedule", sorting_weight: 25 }
+
+switch:
+  # Master on/off for the daily schedule. OFF = nothing moves unattended.
+  - platform: template
+    name: "Schedule Enabled"
+    id: schedule_enabled
+    web_server: { sorting_weight: 1, sorting_group_id: group_schedule }
+    entity_category: CONFIG
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
+  # Picks WHICH schedule runs: OFF = fixed Open/Close times; ON = sunrise/sunset
+  # + offsets. Master "Schedule Enabled" must be ON either way.
+  - platform: template
+    name: "Sun Schedule"
+    id: sun_schedule_enabled
+    web_server: { sorting_weight: 2, sorting_group_id: group_schedule }
+    entity_category: CONFIG
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
+    turn_on_action:
+      - globals.set: { id: global_sun_last_desired, value: "-1" }
+
+# Fixed open/close time pickers. Each fires once a day; runs only when the
+# schedule is enabled and NOT in sun mode. Calls the product's scripts.
+datetime:
+  - platform: template
+    name: "Open Time"
+    id: open_time
+    type: time
+    web_server: { sorting_weight: 3, sorting_group_id: group_schedule }
+    entity_category: CONFIG
+    optimistic: true
+    restore_value: true
+    initial_value: "07:00:00"
+    on_time:
+      - if:
+          condition:
+            lambda: 'return id(schedule_enabled).state && !id(sun_schedule_enabled).state;'
+          then:
+            - logger.log: "Schedule: open"
+            - script.execute: schedule_open
+  - platform: template
+    name: "Close Time"
+    id: close_time
+    type: time
+    web_server: { sorting_weight: 4, sorting_group_id: group_schedule }
+    entity_category: CONFIG
+    optimistic: true
+    restore_value: true
+    initial_value: "21:00:00"
+    on_time:
+      - if:
+          condition:
+            lambda: 'return id(schedule_enabled).state && !id(sun_schedule_enabled).state;'
+          then:
+            - logger.log: "Schedule: close"
+            - script.execute: schedule_close
+
+# POSIX TZ string, browser-editable and persisted; applied immediately and
+# re-applied in on_boot. e.g. "PST8PDT,M3.2.0,M11.1.0", "CET-1CEST,M3.5.0,M10.5.0/3".
+text:
+  - platform: template
+    name: "Timezone"
+    id: tz_text
+    web_server: { sorting_weight: 9, sorting_group_id: group_schedule }
+    entity_category: CONFIG
+    mode: text
+    optimistic: true
+    restore_value: true
+    initial_value: "UTC0"
+    min_length: 0
+    max_length: 64
+    set_action:
+      - lambda: 'id(sntp_time)->set_timezone(x);'
+
+# Location + sun-schedule offsets. Lat/Long feed the sun component; offsets shift
+# the open/close moments relative to sunrise/sunset (negative = before).
+number:
+  - platform: template
+    name: "Latitude"
+    id: latitude_num
+    web_server: { sorting_weight: 7, sorting_group_id: group_schedule }
+    step: 0.0001
+    min_value: -90
+    max_value: 90
+    mode: BOX
+    entity_category: CONFIG
+    lambda: return id(global_latitude);
+    update_interval: 30s
+    set_action:
+      - globals.set: { id: global_latitude, value: !lambda "return x;" }
+      - lambda: id(sun_sun)->set_latitude(x);
+      - globals.set: { id: global_sun_last_desired, value: "-1" }
+  - platform: template
+    name: "Longitude"
+    id: longitude_num
+    web_server: { sorting_weight: 8, sorting_group_id: group_schedule }
+    step: 0.0001
+    min_value: -180
+    max_value: 180
+    mode: BOX
+    entity_category: CONFIG
+    lambda: return id(global_longitude);
+    update_interval: 30s
+    set_action:
+      - globals.set: { id: global_longitude, value: !lambda "return x;" }
+      - lambda: id(sun_sun)->set_longitude(x);
+      - globals.set: { id: global_sun_last_desired, value: "-1" }
+  - platform: template
+    name: "Sun Open Offset"
+    id: sun_open_offset_num
+    web_server: { sorting_weight: 5, sorting_group_id: group_schedule }
+    unit_of_measurement: "min"
+    step: 1
+    min_value: -180
+    max_value: 180
+    mode: BOX
+    entity_category: CONFIG
+    lambda: return id(global_sun_open_offset);
+    update_interval: 30s
+    set_action:
+      - globals.set: { id: global_sun_open_offset, value: !lambda "return x;" }
+      - globals.set: { id: global_sun_last_desired, value: "-1" }
+  - platform: template
+    name: "Sun Close Offset"
+    id: sun_close_offset_num
+    web_server: { sorting_weight: 6, sorting_group_id: group_schedule }
+    unit_of_measurement: "min"
+    step: 1
+    min_value: -180
+    max_value: 180
+    mode: BOX
+    entity_category: CONFIG
+    lambda: return id(global_sun_close_offset);
+    update_interval: 30s
+    set_action:
+      - globals.set: { id: global_sun_close_offset, value: !lambda "return x;" }
+      - globals.set: { id: global_sun_last_desired, value: "-1" }
+
+# Sun-schedule poll: when both switches are on, reconcile to daylight using local
+# sunrise/sunset + offsets. Fires the product scripts only on a day/night
+# transition (compares to the last state acted on), so it moves once at sunrise
+# and once at sunset and won't fight manual control.
+interval:
+  - interval: 60s
+    then:
+      - if:
+          condition:
+            lambda: 'return id(schedule_enabled).state && id(sun_schedule_enabled).state;'
+          then:
+            - lambda: |-
+                auto now = id(sntp_time)->now();
+                if (!now.is_valid()) return;                 // clock not synced yet
+                auto sr = id(sun_sun)->sunrise(-0.833);
+                auto ss = id(sun_sun)->sunset(-0.833);
+                if (!sr.has_value() || !ss.has_value()) return;   // polar day/night or no location
+                int now_min   = now.hour * 60 + now.minute;
+                int open_min  = sr->hour * 60 + sr->minute + id(global_sun_open_offset);
+                int close_min = ss->hour * 60 + ss->minute + id(global_sun_close_offset);
+                int desired = (now_min >= open_min && now_min < close_min) ? 1 : 0;
+                if (desired == id(global_sun_last_desired)) return;   // already there
+                id(global_sun_last_desired) = desired;
+                ESP_LOGI("sun_schedule", "%s (now %02d:%02d)", desired ? "open" : "close",
+                         now.hour, now.minute);
+                if (desired == 1) id(schedule_open)->execute();
+                else              id(schedule_close)->execute();
