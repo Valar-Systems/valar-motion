@@ -35,7 +35,7 @@ packages:
   # Single source of truth — the shared board core lives in valar-motion.
   valar_core:
     url: https://github.com/Valar-Systems/valar-motion
-    ref: v0.1.0                     # pin to a tag; bump deliberately
+    ref: v0.2.0                     # pin to a tag; bump deliberately
     files: [common/valar-core.yaml]
     refresh: 1d
 
