@@ -1,0 +1,56 @@
+name: Build firmware
+
+# Builds a factory + OTA binary for every board in the family and, on a tag,
+# attaches them to the GitHub release. Firmware self-updaters fetch assets by
+# name (val3000.factory.bin, val3100.ota.bin, …) — keep these names stable so
+# units in the field can OTA-update after the repo move.
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        board: [val3000, val3100, val3101]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install ESPHome
+        run: pip install esphome
+
+      - name: Provide secrets stub for CI
+        run: cp secrets.example.yaml secrets.yaml || true
+
+      - name: Compile ${{ matrix.board }}
+        run: esphome compile boards/${{ matrix.board }}/${{ matrix.board }}.yaml
+
+      - name: Collect binaries
+        run: |
+          mkdir -p dist
+          B=${{ matrix.board }}
+          PIO=.esphome/build/$B/.pioenvs/$B
+          cp "$PIO/firmware.factory.bin" "dist/$B.factory.bin"
+          cp "$PIO/firmware.ota.bin"     "dist/$B.ota.bin" 2>/dev/null || \
+            cp "$PIO/firmware.bin"       "dist/$B.ota.bin"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.board }}-firmware
+          path: dist/*.bin
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.bin

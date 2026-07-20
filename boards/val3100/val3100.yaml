@@ -1,0 +1,42 @@
+# =============================================================================
+# VAL3100 — ESP32-C6 (WiFi / Thread / Zigbee / Matter / BLE)
+# =============================================================================
+# Thin per-board wrapper. All shared behaviour lives in
+# ../../common/valar-core.yaml — edit this file only for VAL3100 (ESP32-C6)
+# hardware specifics. Adds a status LED on GPIO23 (the C3-based VAL3000 has none).
+#
+# GPIO map (ESP32-C6 -> TMC2209 / buttons):
+#   GPIO0 : UART TX  -> PDN_UART     GPIO1 : UART RX  <- PDN_UART
+#   GPIO3 : Button 1 (close/home)    GPIO4 : Button 3 (Wi-Fi reset)
+#   GPIO5 : ENN (enable, active-low) GPIO6 : DIAG (StallGuard/fault)
+#   GPIO7 : INDEX (step counter)     GPIO19: Button 2 (open)
+#   GPIO23: Status LED (active-high)
+# =============================================================================
+substitutions:
+  device_name: "val3100"
+  friendly_name: "VAL3100"
+  device_prefix: "val3100"
+  board_id: "VAL3100 (ESP32-C6)"
+  ota_asset: "val3100"
+  esp_board: "esp32-c6-devkitc-1"
+  log_uart: "USB_SERIAL_JTAG"
+  pin_uart_tx: "0"
+  pin_uart_rx: "1"
+  pin_enn: "5"
+  pin_index: "7"
+  pin_diag: "6"
+  pin_btn1: "3"
+  pin_btn2: "19"
+  pin_btn_wifi: "4"
+
+packages:
+  core: !include ../../common/valar-core.yaml
+
+# --- Status LED (VAL3100 / ESP32-C6 only) -----------------------------------
+# Onboard LED on GPIO23. status_led reflects device health (blinks on warning/
+# error) with no extra config.
+light:
+  - platform: status_led
+    name: "Status LED"
+    pin: 23
+    entity_category: DIAGNOSTIC

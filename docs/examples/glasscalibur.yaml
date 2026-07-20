@@ -1,0 +1,67 @@
+# =============================================================================
+# EXAMPLE — Glasscalibur (window opener) building on valar-core
+# =============================================================================
+# Glasscalibur is a finished product on its OWN PCB (not sold standalone), but
+# the same driver stack as the VAL boards: ESP32 + TMC2209 stepper over UART.
+# So it reuses valar-core as a remote package exactly like the Ropener does, and
+# adds only its window-opener application layer on top.
+#
+# This file belongs in the Glasscalibur repo (the PCB isn't a Valar Motion
+# catalog board). Illustrative — adapt, don't ship as-is.
+# =============================================================================
+
+substitutions:
+  device_name: "glasscalibur"
+  friendly_name: "Glasscalibur"
+  device_prefix: "glasscalibur"
+  board_id: "Glasscalibur (ESP32 + TMC2209)"
+  ota_asset: "Glasscalibur"
+  # ⚠️ TODO: set the real chip + GPIO map for the Glasscalibur PCB. Values below
+  #    are placeholders copied from the VAL3100 layout — VERIFY against the
+  #    Glasscalibur schematic before building.
+  esp_board: "esp32-c6-devkitc-1"
+  log_uart: "USB_SERIAL_JTAG"
+  pin_uart_tx: "0"
+  pin_uart_rx: "1"
+  pin_enn: "5"
+  pin_index: "7"
+  pin_diag: "6"
+  pin_btn1: "3"
+  pin_btn2: "19"
+  pin_btn_wifi: "4"
+
+packages:
+  # Single source of truth — shared board core from valar-motion. Pin a tag.
+  valar_core:
+    url: https://github.com/Valar-Systems/valar-motion
+    ref: v0.1.0
+    files: [common/valar-core.yaml]
+    refresh: 1d
+
+# --- Glasscalibur application layer (window opener) --------------------------
+# valar-core already provides wifi/api/ota/improv/Matter, the TMC2209 `stepper`
+# (id: driver), the buttons, and the tuning controls. Add ONLY the window-cover
+# behaviour here.
+
+globals:
+  - { id: window_travel_steps, type: int, restore_value: yes, initial_value: '20000' }
+
+cover:
+  - platform: template
+    id: window
+    name: "Window"
+    device_class: window
+    has_position: true
+    assumed_state: false
+    lambda: "return float(id(driver)->current_position / float(id(window_travel_steps)));"
+    stop_action:
+      - stepper.stop: driver
+    open_action:
+      - stepper.set_target: { id: driver, target: !lambda "return id(window_travel_steps);" }
+    close_action:
+      - stepper.set_target: { id: driver, target: 0 }
+    position_action:
+      - stepper.set_target: { id: driver, target: !lambda "return pos * id(window_travel_steps);" }
+
+# Add Glasscalibur-specific homing, travel-distance controls, and any window
+# safety limits here — all layered on the shared valar-core foundation.

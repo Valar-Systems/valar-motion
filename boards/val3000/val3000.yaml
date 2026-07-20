@@ -1,0 +1,33 @@
+# =============================================================================
+# VAL3000 — ESP32-C3 (WiFi)
+# =============================================================================
+# Thin per-board wrapper: sets this board's chip, GPIO map, and OTA asset name,
+# then pulls in the shared core. All behaviour lives in
+# ../../common/valar-core.yaml — edit that to change every board; edit this file
+# only for VAL3000 (ESP32-C3) hardware specifics. This board has no status LED.
+#
+# GPIO map (ESP32-C3 -> TMC2209 / buttons):
+#   GPIO0 : INDEX (step counter)     GPIO1 : DIAG (StallGuard/fault)
+#   GPIO3 : Button 2 (open)          GPIO4 : Button 1 (close/home)
+#   GPIO5 : UART RX  <- PDN_UART     GPIO6 : UART TX  -> PDN_UART
+#   GPIO7 : Button 3 (Wi-Fi reset)   GPIO8 : ENN (enable, active-low)
+# =============================================================================
+substitutions:
+  device_name: "val3000"
+  friendly_name: "VAL3000"
+  device_prefix: "val3000"
+  board_id: "VAL3000 (ESP32-C3)"
+  ota_asset: "val3000"
+  esp_board: "esp32-c3-devkitm-1"
+  log_uart: "USB_SERIAL_JTAG"
+  pin_uart_tx: "6"
+  pin_uart_rx: "5"
+  pin_enn: "8"
+  pin_index: "0"
+  pin_diag: "1"
+  pin_btn1: "4"
+  pin_btn2: "3"
+  pin_btn_wifi: "7"
+
+packages:
+  core: !include ../../common/valar-core.yaml

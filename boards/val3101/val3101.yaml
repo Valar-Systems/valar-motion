@@ -1,0 +1,63 @@
+# =============================================================================
+# VAL3101 — ESP32-C6 + AS5600 magnetic encoder (closed-loop)
+# =============================================================================
+# The VAL3101 is a VAL3100 (ESP32-C6) with an AS5600 12-bit magnetic encoder
+# soldered on the back and a dipole magnet on the motor shaft, giving absolute
+# position that survives power loss and true closed-loop feedback.
+#
+# It shares the VAL3100 pin map and status LED; the only addition is the AS5600
+# on the I2C bus. Everything else lives in ../../common/valar-core.yaml.
+#
+# The VAL3101 is not a separate PCB: it is the VAL3100 board with the AS5600
+# populated. The VAL3100 layout already carries the AS5600 footprint and its
+# I2C routing (the encoder is simply left unstuffed on a plain VAL3100), so the
+# encoder pins below are read directly from the VAL3100 schematic:
+#   AS5600 SDA -> ESP32-C6 IO14   |   AS5600 SCL -> ESP32-C6 IO15
+# =============================================================================
+substitutions:
+  device_name: "val3101"
+  friendly_name: "VAL3101"
+  device_prefix: "val3101"
+  board_id: "VAL3101 (ESP32-C6 + AS5600)"
+  ota_asset: "val3101"
+  esp_board: "esp32-c6-devkitc-1"
+  log_uart: "USB_SERIAL_JTAG"
+  pin_uart_tx: "0"
+  pin_uart_rx: "1"
+  pin_enn: "5"
+  pin_index: "7"
+  pin_diag: "6"
+  pin_btn1: "3"
+  pin_btn2: "19"
+  pin_btn_wifi: "4"
+  pin_i2c_sda: "14"   # AS5600 SDA -> ESP32-C6 IO14 (verified from VAL3100 schematic)
+  pin_i2c_scl: "15"   # AS5600 SCL -> ESP32-C6 IO15 (verified from VAL3100 schematic)
+
+packages:
+  core: !include ../../common/valar-core.yaml
+
+light:
+  - platform: status_led
+    name: "Status LED"
+    pin: 23
+    entity_category: DIAGNOSTIC
+
+# --- AS5600 magnetic encoder (VAL3101 only) ---------------------------------
+i2c:
+  sda: ${pin_i2c_sda}
+  scl: ${pin_i2c_scl}
+  scan: true
+  frequency: 400kHz
+
+# Top-level hub for the AS5600 (0x36 on I2C). Absolute magnetic position that
+# survives power loss — use it for closed-loop homing instead of StallGuard:
+# the encoder always knows where the shaft is. See docs for the homing recipe.
+as5600:
+  id: encoder
+
+sensor:
+  - platform: as5600
+    name: "Encoder Position"
+    id: encoder_position
+    # Add more AS5600 readouts (raw_position, magnitude, gain) as separate
+    # platform: as5600 entries if you want them exposed.

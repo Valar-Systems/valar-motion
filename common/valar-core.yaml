@@ -1,0 +1,226 @@
+# =============================================================================
+# Valar Motion — ESPHome firmware (shared core)
+# =============================================================================
+#
+# Board-independent core shared by every Valar Motion controller. Each per-board
+# file (boards/val3000/…, boards/val3100/…, boards/val3101/…) sets the chip
+# variant, the GPIO pin map, and the OTA asset name via substitutions, then
+# pulls this file in as a package:
+#
+#   substitutions: { board_variant: …, pin_uart_tx: …, ota_asset: …, … }
+#   packages: { core: !include ../../common/valar-core.yaml }
+#
+# A Wi-Fi (and, on the C6 boards, Thread/Zigbee-capable) stepper motor
+# controller built around a TMC2209 driver. Control it from a browser at
+# http://${device_prefix}-XXXXXX.local (XXXXXX = last 3 bytes of the MAC,
+# printed on the serial log at boot). No Home Assistant required; pairs with
+# HA over the native ESPHome API when you want automation.
+#
+# Behaviour lives HERE and is identical across boards. Edit a per-board file
+# ONLY for that board's hardware specifics (pins, status LED, encoder).
+#
+# -----------------------------------------------------------------------------
+# Hardware (common to the family)
+# -----------------------------------------------------------------------------
+#   Driver : TMC2209, single-wire UART control (PDN_UART), StallGuard+StealthChop
+#   Motor  : any 4-wire bipolar stepper; 200 full steps/rev, 8x microstep = 1600
+#   Power  : 12–24 V, 2 A+ (2.1 x 5.5 mm barrel)
+#   Flash  : USB-C (Improv over serial for Wi-Fi provisioning)
+#
+# GPIO signals (concrete pins supplied per-board via substitutions):
+#   UART TX  -> TMC2209 PDN_UART   ${pin_uart_tx}
+#   UART RX  <- TMC2209 PDN_UART   ${pin_uart_rx}
+#   ENN       (enable, active-low) ${pin_enn}
+#   DIAG      (StallGuard/fault)   ${pin_diag}
+#   INDEX     (step counter)       ${pin_index}
+#   Button 1  (close / home)       ${pin_btn1}
+#   Button 2  (open)               ${pin_btn2}
+#   Button 3  (Wi-Fi reset)        ${pin_btn_wifi}
+# =============================================================================
+
+external_components:
+  # Pinned to a specific commit so every rebuild is reproducible. Bump only
+  # deliberately (and re-test all three boards) — never let it float.
+  - source: github://slimcdk/esphome-custom-components@b5f0e44ae8732f68b9bbeaed9e962ca052d04cdb
+    components: [tmc2209_hub, tmc2209, stepper]
+
+esphome:
+  name: ${device_name}
+  friendly_name: ${friendly_name}
+  name_add_mac_suffix: true
+  on_boot:
+    - tmc2209.configure:
+        direction: !lambda return id(global_stepper_direction);
+        microsteps: 8
+        interpolation: true
+        tcool_threshold: !lambda "return id(global_tcoolthrs);"
+    - tmc2209.stallguard:
+        threshold: !lambda "return id(global_sgthrs);"
+    - tmc2209.currents:
+        standstill_mode: freewheeling
+        irun: !lambda "return id(global_irun);"
+        ihold: 0
+        tpowerdown: 0
+        iholddelay: 0
+    - stepper.set_speed:
+        id: driver
+        speed: !lambda "return id(global_speed);"
+    - stepper.set_acceleration:
+        id: driver
+        acceleration: !lambda "return id(global_acceleration);"
+
+esp32:
+  board: ${esp_board}
+  framework:
+    type: esp-idf
+
+# --- Connectivity / provisioning -------------------------------------------
+wifi:
+  ap: {}          # fallback hotspot; SSID defaults to the device name
+
+captive_portal:
+improv_serial:    # Wi-Fi setup over USB-C at https://web.esphome.io
+
+api:              # no encryption key -> discoverable/adoptable out of the box
+ota:
+  - platform: esphome
+
+logger:
+  hardware_uart: ${log_uart}   # keep logs + Improv on the USB-C port
+
+# --- Shared state -----------------------------------------------------------
+globals:
+  - { id: global_irun,          type: int,   restore_value: yes, initial_value: '25' }
+  - { id: global_speed,         type: int,   restore_value: yes, initial_value: '1500' }
+  - { id: global_acceleration,  type: int,   restore_value: yes, initial_value: '1500' }
+  - { id: global_tcoolthrs,     type: int,   restore_value: yes, initial_value: '100' }
+  - { id: global_sgthrs,        type: int,   restore_value: yes, initial_value: '100' }
+  - id: global_stepper_direction
+    type: esphome::tmc2209::ShaftDirection
+    restore_value: yes
+    initial_value: 'esphome::tmc2209::ShaftDirection::CLOCKWISE'
+
+uart:
+  tx_pin: ${pin_uart_tx}
+  rx_pin: ${pin_uart_rx}
+  baud_rate: 500000
+
+stepper:
+  - platform: tmc2209
+    id: driver
+    max_speed: 2000 steps/s
+    acceleration: 2000 steps/s^2
+    deceleration: 3000 steps/s^2
+    config_dump_include_registers: true
+    rsense: 100 mOhm
+    vsense: False
+    enn_pin: ${pin_enn}
+    index_pin: ${pin_index}
+    diag_pin: ${pin_diag}
+    on_stall:
+      - stepper.stop: driver
+      - stepper.report_position: { id: driver, position: 0 }
+      - logger.log: "Stall detected — stopped and zeroed"
+
+binary_sensor:
+  - platform: gpio
+    name: "Button 1"
+    pin:
+      number: ${pin_btn1}
+      mode: INPUT
+      inverted: true
+    filters:
+      - delayed_on: 10ms
+    on_click:
+      min_length: 3000ms
+      max_length: 10000ms
+      then:
+        - stepper.report_position: { id: driver, position: 0 }
+        - stepper.set_target: { id: driver, target: 0 }
+        - logger.log: "Homed (position zeroed)"
+  - platform: gpio
+    name: "Button 2"
+    pin:
+      number: ${pin_btn2}
+      mode: INPUT
+      inverted: true
+    filters:
+      - delayed_on: 10ms
+  - platform: gpio
+    name: "Button 3 (Wi-Fi reset)"
+    pin:
+      number: ${pin_btn_wifi}
+      mode: INPUT
+      inverted: true
+    filters:
+      - delayed_on: 10ms
+
+# --- Tuning controls (identical on every board) -----------------------------
+number:
+  - platform: template
+    name: "Speed"
+    min_value: 100
+    max_value: 10000
+    step: 100
+    mode: SLIDER
+    entity_category: CONFIG
+    lambda: return id(global_speed);
+    update_interval: 1s
+    set_action:
+      - globals.set: { id: global_speed, value: !lambda "return x;" }
+      - stepper.set_speed: { id: driver, speed: !lambda "return id(global_speed);" }
+  - platform: template
+    name: "Acceleration"
+    min_value: 100
+    max_value: 10000
+    step: 100
+    mode: SLIDER
+    entity_category: CONFIG
+    lambda: return id(global_acceleration);
+    update_interval: 1s
+    set_action:
+      - globals.set: { id: global_acceleration, value: !lambda "return x;" }
+      - stepper.set_acceleration: { id: driver, acceleration: !lambda "return id(global_acceleration);" }
+  - platform: template
+    name: "IRUN (motor current)"
+    min_value: 1
+    max_value: 31
+    step: 1
+    mode: BOX
+    entity_category: CONFIG
+    lambda: return id(driver)->read_field(IRUN_FIELD);
+    update_interval: 1s
+    set_action:
+      - globals.set: { id: global_irun, value: !lambda "return x;" }
+      - tmc2209.currents: { irun: !lambda "return id(global_irun);" }
+  - platform: template
+    name: "SGTHRS (stall threshold)"
+    min_value: 0
+    max_value: 255
+    step: 1
+    mode: SLIDER
+    entity_category: CONFIG
+    lambda: return id(driver)->read_register(SGTHRS);
+    update_interval: 1s
+    set_action:
+      - globals.set: { id: global_sgthrs, value: !lambda "return x;" }
+      - lambda: id(driver)->write_register(SGTHRS, x);
+
+switch:
+  - platform: template
+    name: "Motor Direction"
+    entity_category: CONFIG
+    optimistic: true
+    turn_on_action:
+      - globals.set: { id: global_stepper_direction, value: 'esphome::tmc2209::ShaftDirection::COUNTERCLOCKWISE' }
+      - tmc2209.configure: { direction: !lambda return id(global_stepper_direction); }
+    turn_off_action:
+      - globals.set: { id: global_stepper_direction, value: 'esphome::tmc2209::ShaftDirection::CLOCKWISE' }
+      - tmc2209.configure: { direction: !lambda return id(global_stepper_direction); }
+
+sensor:
+  - platform: template
+    name: "SG_RESULT"
+    lambda: return id(driver)->read_register(SG_RESULT);
+    update_interval: 1s
+    entity_category: DIAGNOSTIC

@@ -1,0 +1,69 @@
+# =============================================================================
+# EXAMPLE — how the Ropener (a downstream product) builds on valar-core
+# without copying it. Illustrative: adapt in the Ropener repo, don't ship as-is.
+# =============================================================================
+#
+# The Ropener pulls valar-core from the valar-motion repo as a REMOTE PACKAGE,
+# then adds only the curtain-specific layer on top (cover entity + gear math).
+# No board firmware is duplicated — fix a bug in valar-core once and every
+# product that references it inherits the fix on its next pinned bump.
+# =============================================================================
+
+substitutions:
+  # Board pin map (VAL3100 / ESP32-C6). In practice, keep these in a shared
+  # per-board substitutions file so the generic build and the Ropener agree.
+  device_name: "ropener"
+  friendly_name: "Ropener"
+  device_prefix: "ropener"
+  board_id: "VAL3100 (ESP32-C6)"
+  ota_asset: "Ropener-VAL3100"      # keep asset name stable for field OTA
+  esp_board: "esp32-c6-devkitc-1"
+  log_uart: "USB_SERIAL_JTAG"
+  pin_uart_tx: "0"
+  pin_uart_rx: "1"
+  pin_enn: "5"
+  pin_index: "7"
+  pin_diag: "6"
+  pin_btn1: "3"
+  pin_btn2: "19"
+  pin_btn_wifi: "4"
+  # Ropener-specific:
+  gear_distance_cm: "3.7699"        # MK7 drive gear: cm of rope per revolution
+  steps_per_revolution: "1600"
+
+packages:
+  # Single source of truth — the shared board core lives in valar-motion.
+  valar_core:
+    url: https://github.com/Valar-Systems/valar-motion
+    ref: v0.1.0                     # pin to a tag; bump deliberately
+    files: [common/valar-core.yaml]
+    refresh: 1d
+
+# --- Ropener application layer (curtain behaviour on top of valar-core) ------
+# valar-core already provides wifi/api/ota/improv, the TMC2209 `stepper` (id:
+# driver), the three buttons, and the tuning controls. Here we add ONLY the
+# curtain cover on top of that shared foundation.
+
+globals:
+  - { id: global_distance_steps, type: int, restore_value: yes, initial_value: '12732' }
+
+cover:
+  - platform: template
+    id: ropener_cover
+    name: "Ropener"
+    has_position: true
+    assumed_state: false
+    lambda: "return float(id(driver)->current_position / float(id(global_distance_steps)));"
+    stop_action:
+      - stepper.stop: driver
+    open_action:
+      - stepper.set_target: { id: driver, target: !lambda "return id(global_distance_steps);" }
+    close_action:
+      - stepper.set_target: { id: driver, target: 0 }
+    position_action:
+      - stepper.set_target: { id: driver, target: !lambda "return pos * id(global_distance_steps);" }
+
+# Note: this example keeps the cover minimal. The full Ropener adds its homing
+# recipe (StallGuard on VAL3000/3100, AS5600 closed-loop on VAL3101), the
+# centimetre/distance number controls, and the button gestures documented in the
+# Ropener README. Those all live in the Ropener repo, layered on valar-core.
