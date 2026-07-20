@@ -39,7 +39,11 @@ jobs:
         run: |
           mkdir -p dist
           B=${{ matrix.board }}
-          PIO=.esphome/build/$B/.pioenvs/$B
+          # ESPHome writes build output next to the board's YAML, i.e.
+          # boards/$B/.esphome/build/$B/.pioenvs/$B/ — locate it robustly so
+          # this doesn't break if the build layout changes.
+          PIO=$(dirname "$(find . -path "*/.pioenvs/$B/firmware.factory.bin" | head -1)")
+          echo "Using build dir: $PIO"
           cp "$PIO/firmware.factory.bin" "dist/$B.factory.bin"
           cp "$PIO/firmware.ota.bin"     "dist/$B.ota.bin" 2>/dev/null || \
             cp "$PIO/firmware.bin"       "dist/$B.ota.bin"
