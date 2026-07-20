@@ -6,8 +6,9 @@ for the **VAL3000 (ESP32-C3)** — the VAL3100/3101 are ESP32-C6 with a differen
 GPIO map, so for those consult each board's wrapper in
 [`boards/<board>/<board>.yaml`](../boards).
 
-> **⚠️ No reverse-polarity protection.** Double-check your supply is **center
-> positive** before plugging it in.
+> **⚠️ VAL3000 has no reverse-polarity protection** — double-check your supply is
+> **center positive** before plugging it in. The VAL3100 / VAL3101 add
+> reverse-polarity protection, but center-positive is still the correct polarity.
 
 <p align="center">
   <img src="/docs/val3000/media/6.jpg" width="520" alt="Annotated Valar Motion board (VAL3000 shown)">

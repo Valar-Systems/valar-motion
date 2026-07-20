@@ -35,9 +35,14 @@ motor face):
 - **5–24 V synchronous DC/DC converter** — efficient on-board regulation from the
   motor supply, no separate logic power needed
 - **Three buttons** for manual open / close / Wi-Fi-reset
-- **Flexible motor hookup** — on-board 4-pin JST-XH, a screw terminal, or solder
-  wires straight to the pads
-- **Barrel + screw-terminal power** inputs and a **USB-C** port for flashing
+- **Motor hookup** — the **VAL3100 / VAL3101** ship with a **4-pin screw terminal
+  pre-soldered** for the stepper (alongside the JST-XH); the **VAL3000** has the
+  **JST-XH** connector (screw terminal included to solder on, or wire directly to
+  the pads)
+- **Power** — 2.1 × 5.5 mm barrel **and** a 2-pin screw terminal, plus **USB-C**
+  for flashing
+- **Reverse-polarity protection** on the **VAL3100 / VAL3101** (the VAL3000 has
+  none — mind the polarity)
 
 <p align="center">
   <img src="/docs/val3000/media/6.jpg" width="560" alt="Annotated Valar Motion board (VAL3000 shown)">
@@ -55,8 +60,9 @@ Setup takes about three minutes:
 
 That's it. When you're ready to customize, plug in USB-C and flash a build below.
 
-> **⚠️ Warning:** the board has **no reverse-polarity protection**. Double-check
-> your supply polarity (center positive) before powering on.
+> **⚠️ VAL3000 only:** the VAL3000 has **no reverse-polarity protection** —
+> double-check your supply is center-positive before powering on. The
+> VAL3100 / VAL3101 add reverse-polarity protection.
 
 ## Flash a board (the fast way)
 
