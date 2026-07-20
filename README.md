@@ -141,6 +141,7 @@ core once and all three boards inherit it.
 
 ## Hardware & documentation
 
+- **Hardware guide:** [`docs/hardware-guide.md`](docs/hardware-guide.md) — power/voltage/current/heat, driving the TMC2209 (UART vs STEP/DIR), and mounting to a NEMA 17
 - **PCB / KiCad sources:** [`hardware/val3000`](hardware/val3000),
   [`hardware/val3100`](hardware/val3100) (the VAL3101 uses the VAL3100 board with
   the AS5600 encoder populated — see [`hardware/val3101`](hardware/val3101))
