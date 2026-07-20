@@ -188,8 +188,13 @@ stepper:
       - stepper.report_position: { id: driver, position: 0 }
       - logger.log: "Stall detected — stopped and zeroed"
 
+# Physical buttons — BARE entities (pins + debounce, with ids, no baked-in
+# actions). Behaviour belongs to the product/board layer: a product attaches
+# on_press/on_click/on_release by `!extend`-ing these ids (btn1/btn2/btn3). The
+# generic board build leaves them as plain state-reporting inputs.
 binary_sensor:
   - platform: gpio
+    id: btn1
     name: "Button 1"
     web_server: { sorting_weight: 1, sorting_group_id: group_control }
     pin:
@@ -198,14 +203,8 @@ binary_sensor:
       inverted: true
     filters:
       - delayed_on: 10ms
-    on_click:
-      min_length: 3000ms
-      max_length: 10000ms
-      then:
-        - stepper.report_position: { id: driver, position: 0 }
-        - stepper.set_target: { id: driver, target: 0 }
-        - logger.log: "Homed (position zeroed)"
   - platform: gpio
+    id: btn2
     name: "Button 2"
     web_server: { sorting_weight: 2, sorting_group_id: group_control }
     pin:
@@ -215,6 +214,7 @@ binary_sensor:
     filters:
       - delayed_on: 10ms
   - platform: gpio
+    id: btn3
     name: "Button 3 (Wi-Fi reset)"
     web_server: { sorting_weight: 3, sorting_group_id: group_control }
     pin:
@@ -227,6 +227,7 @@ binary_sensor:
 # --- Tuning controls (identical on every board) -----------------------------
 number:
   - platform: template
+    id: num_speed
     name: "Speed"
     web_server: { sorting_weight: 1, sorting_group_id: group_motion }
     min_value: 100
@@ -240,6 +241,7 @@ number:
       - globals.set: { id: global_speed, value: !lambda "return x;" }
       - stepper.set_speed: { id: driver, speed: !lambda "return id(global_speed);" }
   - platform: template
+    id: num_accel
     name: "Acceleration"
     web_server: { sorting_weight: 2, sorting_group_id: group_motion }
     min_value: 100
@@ -253,6 +255,7 @@ number:
       - globals.set: { id: global_acceleration, value: !lambda "return x;" }
       - stepper.set_acceleration: { id: driver, acceleration: !lambda "return id(global_acceleration);" }
   - platform: template
+    id: num_irun
     name: "IRUN (motor current)"
     web_server: { sorting_weight: 1, sorting_group_id: group_stallguard }
     min_value: 1
@@ -266,6 +269,21 @@ number:
       - globals.set: { id: global_irun, value: !lambda "return x;" }
       - tmc2209.currents: { irun: !lambda "return id(global_irun);" }
   - platform: template
+    id: num_tcoolthrs
+    name: "TCOOLTHRS"
+    web_server: { sorting_weight: 3, sorting_group_id: group_stallguard }
+    min_value: 0
+    max_value: 1048575
+    step: 1
+    mode: BOX
+    entity_category: CONFIG
+    lambda: return id(driver)->read_register(TCOOLTHRS);
+    update_interval: 30s   # config value read over UART; poll slowly
+    set_action:
+      - globals.set: { id: global_tcoolthrs, value: !lambda "return x;" }
+      - lambda: id(driver)->write_register(TCOOLTHRS, x);
+  - platform: template
+    id: num_sgthrs
     name: "SGTHRS (stall threshold)"
     web_server: { sorting_weight: 2, sorting_group_id: group_stallguard }
     min_value: 0
@@ -287,6 +305,7 @@ number:
 # fights the restored value.
 select:
   - platform: template
+    id: sel_direction
     name: "Motor Direction"
     web_server: { sorting_weight: 1, sorting_group_id: group_setup }
     entity_category: CONFIG
@@ -364,12 +383,14 @@ text_sensor:
 sensor:
   # TMC2209 register readouts — tune StallGuard by watching SG_RESULT under load.
   - platform: template
+    id: sen_sgresult
     name: "SG_RESULT"
     lambda: return id(driver)->read_register(SG_RESULT);
     update_interval: 1s
     entity_category: DIAGNOSTIC
     web_server: { sorting_weight: 1, sorting_group_id: group_diagnostics }
   - platform: template
+    id: sen_tstep
     name: "TSTEP"
     lambda: return id(driver)->read_register(TSTEP);
     update_interval: 1s
