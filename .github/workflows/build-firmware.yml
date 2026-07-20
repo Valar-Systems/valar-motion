@@ -32,8 +32,19 @@ jobs:
       - name: Provide secrets stub for CI
         run: cp secrets.example.yaml secrets.yaml || true
 
+      # On a tag build, inject the tag as fw_version so the "Firmware Version"
+      # diagnostic on a shipped unit matches the release it came from. Branch/PR
+      # builds keep the core default ("dev") — honest for a non-release build.
+      # (`-s KEY VALUE` must come BEFORE the subcommand; after the file it is
+      # silently ignored.)
       - name: Compile ${{ matrix.board }}
-        run: esphome compile boards/${{ matrix.board }}/${{ matrix.board }}.yaml
+        run: |
+          B=${{ matrix.board }}
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            esphome -s fw_version "${{ github.ref_name }}" compile "boards/$B/$B.yaml"
+          else
+            esphome compile "boards/$B/$B.yaml"
+          fi
 
       - name: Collect binaries
         run: |
