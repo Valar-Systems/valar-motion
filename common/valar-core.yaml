@@ -47,6 +47,23 @@
 substitutions:
   ota_repo: "Valar-Systems/valar-motion"
   fw_version: "dev"
+  # Stepper hardware constants. Defaults match the VAL30xx reference boards
+  # (100 mOhm sense, vsense off). A product on different hardware overrides these
+  # in its board file — e.g. Glasscalibur's 220 mOhm board sets stepper_rsense.
+  # deceleration accepts "inf" for immediate stop. max_speed/acceleration here are
+  # only the pre-on_boot seed values (on_boot overwrites both from the persisted
+  # Speed/Acceleration globals), but are parameterised so a product's brief
+  # power-on window matches its hardware too.
+  stepper_rsense: "100 mOhm"
+  stepper_vsense: "false"
+  stepper_deceleration: "3000 steps/s^2"
+  stepper_max_speed: "2000 steps/s"
+  stepper_acceleration: "2000 steps/s^2"
+  stepper_config_dump: "true"
+  # Power-on motor direction, applied in on_boot. The Motor Direction select (when
+  # the product keeps it) overrides this at runtime; a product that removes the
+  # select — like Glasscalibur — fixes direction here. CLOCKWISE / COUNTERCLOCKWISE.
+  motor_direction_default: "CLOCKWISE"
 
 external_components:
   # Pinned to a specific commit so every rebuild is reproducible. Bump only
@@ -160,7 +177,7 @@ globals:
   - id: global_stepper_direction
     type: esphome::tmc2209::ShaftDirection
     restore_value: yes
-    initial_value: 'esphome::tmc2209::ShaftDirection::CLOCKWISE'
+    initial_value: 'esphome::tmc2209::ShaftDirection::${motor_direction_default}'
 
 uart:
   tx_pin: ${pin_uart_tx}
@@ -170,12 +187,12 @@ uart:
 stepper:
   - platform: tmc2209
     id: driver
-    max_speed: 2000 steps/s
-    acceleration: 2000 steps/s^2
-    deceleration: 3000 steps/s^2
-    config_dump_include_registers: true
-    rsense: 100 mOhm
-    vsense: False
+    max_speed: ${stepper_max_speed}
+    acceleration: ${stepper_acceleration}
+    deceleration: ${stepper_deceleration}
+    config_dump_include_registers: ${stepper_config_dump}
+    rsense: ${stepper_rsense}
+    vsense: ${stepper_vsense}
     enn_pin: ${pin_enn}
     index_pin: ${pin_index}
     diag_pin: ${pin_diag}
