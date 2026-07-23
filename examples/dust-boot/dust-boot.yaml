@@ -1,0 +1,337 @@
+# =============================================================================
+# CNC Dust Boot — VAL3000 (ESP32-C3) firmware  [ESPHome]
+# =============================================================================
+# A motorised dust-boot lift for a table-saw / CNC. Uses the VAL3000's TMC2209
+# with sensorless StallGuard homing — no limit switches. Control it from the
+# three on-board buttons, a CNC-controller signal, or the browser web UI at
+# http://dust-boot-XXXXXX.local.
+#
+# Motion model:  HOME (top, fully raised) = position 0.  DOWN = increasing steps.
+#   - Home is found by driving UP until the boot hits its top stop and StallGuard
+#     trips (on_stall zeroes the position there).
+#   - "Lowered" is a position you set once (jog down onto the work, then set it),
+#     stored in flash, that the CNC signal / buttons return to.
+#
+# CONTROLS
+#   Button 1 : single  -> sensorless HOME (drive up until StallGuard = top)
+#              double  -> move to HOME (position 0)
+#   Button 2 : single  -> jog DOWN one step (default 5 mm)
+#              double  -> set current position as the LOWERED limit
+#   Button 3 : STOP (halts motion any time)
+#   CNC in   : HIGH -> go HOME (up)   |   LOW -> go LOWERED (down)   [see ${pin_cnc}]
+#
+# -----------------------------------------------------------------------------
+# ⚠️  THREE THINGS TO CONFIRM BEFORE TRUSTING IT ON HARDWARE
+# -----------------------------------------------------------------------------
+#  1. CNC INPUT VOLTAGE — the ESP32-C3 GPIO is 3.3 V MAX. If the CNC controller
+#     outputs 5 V / 12 V / 24 V (most do), wiring it straight to a pin WILL
+#     damage the board. Level-shift or opto-isolate it down to 3.3 V first.
+#  2. steps_per_mm — set it to YOUR drive (leadscrew pitch / pulley). The
+#     "Steps per mm" slider in the web UI tunes it live; default below is a guess.
+#  3. Button map + direction — if a button does the wrong thing, swap
+#     pin_btn1/pin_btn2 below; if "home" drives the boot DOWN instead of up,
+#     flip the "Invert direction" switch in the web UI.
+# =============================================================================
+
+substitutions:
+  name: "dust-boot"
+  friendly_name: "CNC Dust Boot"
+
+  # --- VAL3000 (ESP32-C3) pin map (TMC2209 over UART; no STEP/DIR pin needed) --
+  pin_uart_tx: "6"
+  pin_uart_rx: "5"
+  pin_enn:     "8"
+  pin_diag:    "1"    # TMC2209 DIAG -> StallGuard
+  pin_index:   "0"    # TMC2209 INDEX -> step counter
+  pin_btn1:    "3"    # HOME button
+  pin_btn2:    "4"    # JOG / set-limit button
+  pin_btn3:    "7"    # STOP button
+
+  # --- CNC controller input ---------------------------------------------------
+  # Set to the broken-out pad you wire the (3.3 V!) CNC signal to. GPIO10 is free
+  # in UART mode; confirm it's the pad your board exposes. See warning #1 above.
+  pin_cnc:     "10"
+
+esphome:
+  name: ${name}
+  friendly_name: ${friendly_name}
+  name_add_mac_suffix: true
+  on_boot:
+    - priority: 600.0
+      then:
+        # Apply saved direction, microstepping, StallGuard threshold and currents.
+        - tmc2209.configure:
+            direction: !lambda "return id(dir_invert).state ? esphome::tmc2209::ShaftDirection::COUNTERCLOCKWISE : esphome::tmc2209::ShaftDirection::CLOCKWISE;"
+            microsteps: 8
+            interpolation: true
+        - tmc2209.stallguard:
+            threshold: !lambda "return (int) id(homing_sensitivity).state;"
+        - tmc2209.currents:
+            standstill_mode: normal          # hold position when idle (a lift can back-drive)
+            irun: !lambda "return (int) id(run_current).state;"
+            ihold: 8                          # modest holding current; lower if the driver runs hot
+        - stepper.set_speed:      { id: driver, speed: !lambda "return (int) id(move_speed).state;" }
+        - stepper.set_acceleration: { id: driver, acceleration: 2000 }
+
+esp32:
+  board: esp32-c3-devkitm-1
+  framework:
+    type: esp-idf
+
+external_components:
+  # Same TMC2209 + StallGuard stepper component the Valar Motion firmware uses.
+  - source: github://slimcdk/esphome-custom-components@b5f0e44ae8732f68b9bbeaed9e962ca052d04cdb
+    components: [tmc2209_hub, tmc2209, stepper]
+
+# --- Connectivity ------------------------------------------------------------
+wifi:
+  ap: {}            # fallback hotspot for first-time Wi-Fi setup
+captive_portal:
+improv_serial:      # Wi-Fi provisioning over USB-C at https://web.esphome.io
+api:
+ota:
+  - platform: esphome
+logger:
+  hardware_uart: USB_SERIAL_JTAG
+web_server:
+  port: 80
+  version: 3
+
+# --- State -------------------------------------------------------------------
+globals:
+  - { id: lowered_steps, type: int,  restore_value: yes, initial_value: '0' }   # the set "lowered" position
+  - { id: is_homed,      type: bool, restore_value: no,  initial_value: 'false' }
+  - { id: homing,        type: bool, restore_value: no,  initial_value: 'false' }
+
+uart:
+  tx_pin: ${pin_uart_tx}
+  rx_pin: ${pin_uart_rx}
+  baud_rate: 500000
+
+stepper:
+  - platform: tmc2209
+    id: driver
+    max_speed: 4000 steps/s
+    acceleration: 2000 steps/s^2
+    deceleration: 3000 steps/s^2
+    rsense: 100 mOhm          # VAL3000 uses 0.1 Ω sense resistors
+    vsense: False
+    enn_pin: ${pin_enn}
+    index_pin: ${pin_index}
+    diag_pin: ${pin_diag}
+    on_stall:
+      - if:
+          condition:
+            lambda: "return id(homing);"
+          then:
+            # Homing: the boot has reached its top stop. Zero here = HOME.
+            - stepper.stop: driver
+            - stepper.report_position: { id: driver, position: 0 }
+            - stepper.set_target: { id: driver, target: 0 }
+            - globals.set: { id: is_homed, value: 'true' }
+            - globals.set: { id: homing,   value: 'false' }
+            - logger.log: "Top found via StallGuard — HOME set to 0"
+          else:
+            # Unexpected stall during normal motion: just stop safely.
+            - stepper.stop: driver
+            - logger.log: "Stall detected (not homing) — stopped"
+
+# --- Named motions (shared by buttons, CNC input, and the web UI) ------------
+script:
+  # Sensorless home: drive UP (negative) until StallGuard trips (see on_stall).
+  - id: do_home
+    then:
+      - globals.set: { id: homing, value: 'true' }
+      - stepper.set_target: { id: driver, target: -10000000 }
+      - logger.log: "Homing up until stall..."
+  # Go to the HOME position (top).
+  - id: go_home
+    then:
+      - globals.set: { id: homing, value: 'false' }
+      - stepper.set_target: { id: driver, target: 0 }
+  # Go to the saved LOWERED position.
+  - id: go_lowered
+    then:
+      - globals.set: { id: homing, value: 'false' }
+      - stepper.set_target: { id: driver, target: !lambda "return id(lowered_steps);" }
+  # Jog DOWN one step (default 5 mm), relative to where it is now.
+  - id: jog_down
+    then:
+      - globals.set: { id: homing, value: 'false' }
+      - stepper.set_target:
+          id: driver
+          target: !lambda "return id(driver)->current_position + (long)(id(jog_mm).state * id(steps_per_mm).state);"
+  # Record the current position as the LOWERED limit.
+  - id: set_lowered
+    then:
+      - globals.set: { id: lowered_steps, value: !lambda "return id(driver)->current_position;" }
+      - logger.log: "Lowered limit set"
+  # Stop everything.
+  - id: stop_all
+    then:
+      - globals.set: { id: homing, value: 'false' }
+      - stepper.stop: driver
+      - logger.log: "STOP"
+
+# --- Physical buttons --------------------------------------------------------
+binary_sensor:
+  - platform: gpio
+    name: "Button 1 (Home)"
+    pin:
+      number: ${pin_btn1}
+      mode: INPUT_PULLUP
+      inverted: true
+    filters: [ delayed_on: 12ms ]
+    on_multi_click:
+      - { timing: [ { state: on, min_length: 12ms, max_length: 400ms }, { state: off, min_length: 12ms, max_length: 400ms }, { state: on, min_length: 12ms, max_length: 400ms } ], then: [ script.execute: go_home ] }        # double -> go to home
+      - { timing: [ { state: on, min_length: 12ms, max_length: 400ms }, { state: off, min_length: 40ms } ], then: [ script.execute: do_home ] }                                                                                    # single -> sensorless home
+  - platform: gpio
+    name: "Button 2 (Jog and Set-limit)"
+    pin:
+      number: ${pin_btn2}
+      mode: INPUT_PULLUP
+      inverted: true
+    filters: [ delayed_on: 12ms ]
+    on_multi_click:
+      - { timing: [ { state: on, min_length: 12ms, max_length: 400ms }, { state: off, min_length: 12ms, max_length: 400ms }, { state: on, min_length: 12ms, max_length: 400ms } ], then: [ script.execute: set_lowered ] }     # double -> set lowered limit
+      - { timing: [ { state: on, min_length: 12ms, max_length: 400ms }, { state: off, min_length: 40ms } ], then: [ script.execute: jog_down ] }                                                                                  # single -> jog down
+  - platform: gpio
+    name: "Button 3 (Stop)"
+    pin:
+      number: ${pin_btn3}
+      mode: INPUT_PULLUP
+      inverted: true
+    filters: [ delayed_on: 12ms ]
+    on_press:
+      - script.execute: stop_all
+
+  # CNC controller input: HIGH -> home (up), LOW -> lowered (down).
+  # NOTE: 3.3 V logic only — see warning #1. Uses an internal pulldown so a
+  # floating/disconnected input reads LOW (boot goes to the lowered position).
+  - platform: gpio
+    name: "CNC Input"
+    id: cnc_input
+    pin:
+      number: ${pin_cnc}
+      mode: INPUT_PULLDOWN
+    filters: [ delayed_on: 20ms, delayed_off: 20ms ]
+    on_press:   [ script.execute: go_home ]      # rising edge -> HOME
+    on_release: [ script.execute: go_lowered ]   # falling edge -> LOWERED
+
+# --- Web-UI settings (tune live; saved to flash) -----------------------------
+number:
+  - platform: template
+    name: "Steps per mm"
+    id: steps_per_mm
+    min_value: 1
+    max_value: 2000
+    step: 0.1
+    mode: BOX
+    unit_of_measurement: "st/mm"
+    optimistic: true
+    restore_value: true
+    initial_value: 80        # <-- SET THIS to your drive (see warning #2)
+    entity_category: CONFIG
+  - platform: template
+    name: "Jog distance"
+    id: jog_mm
+    min_value: 0.1
+    max_value: 50
+    step: 0.5
+    mode: BOX
+    unit_of_measurement: "mm"
+    optimistic: true
+    restore_value: true
+    initial_value: 5
+    entity_category: CONFIG
+  - platform: template
+    name: "Move speed"
+    id: move_speed
+    min_value: 100
+    max_value: 8000
+    step: 100
+    mode: SLIDER
+    unit_of_measurement: "st/s"
+    optimistic: true
+    restore_value: true
+    initial_value: 2000
+    entity_category: CONFIG
+    set_action:
+      - stepper.set_speed: { id: driver, speed: !lambda "return (int) x;" }
+  - platform: template
+    name: "Homing sensitivity (SGTHRS)"
+    id: homing_sensitivity
+    min_value: 0
+    max_value: 255
+    step: 1
+    mode: SLIDER
+    optimistic: true
+    restore_value: true
+    initial_value: 60        # tune: higher = trips more easily. Watch SG_RESULT while homing.
+    entity_category: CONFIG
+    set_action:
+      - tmc2209.stallguard: { threshold: !lambda "return (int) x;" }
+  - platform: template
+    name: "Run current (IRUN)"
+    id: run_current
+    min_value: 1
+    max_value: 31
+    step: 1
+    mode: SLIDER
+    optimistic: true
+    restore_value: true
+    initial_value: 20
+    entity_category: CONFIG
+    set_action:
+      - tmc2209.currents: { irun: !lambda "return (int) x;" }
+
+switch:
+  - platform: template
+    name: "Invert direction"
+    id: dir_invert
+    entity_category: CONFIG
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
+    turn_on_action:
+      - tmc2209.configure:
+          direction: ccw
+    turn_off_action:
+      - tmc2209.configure:
+          direction: cw
+
+# --- Web-UI buttons (same actions as the physical ones) ----------------------
+button:
+  - { platform: template, name: "Home (find top)", on_press: [ script.execute: do_home ] }
+  - { platform: template, name: "Go to Home",      on_press: [ script.execute: go_home ] }
+  - { platform: template, name: "Go to Lowered",   on_press: [ script.execute: go_lowered ] }
+  - { platform: template, name: "Jog Down",        on_press: [ script.execute: jog_down ] }
+  - { platform: template, name: "Set Lowered Limit", on_press: [ script.execute: set_lowered ] }
+  - { platform: template, name: "STOP", on_press: [ script.execute: stop_all ] }
+
+# --- Diagnostics -------------------------------------------------------------
+sensor:
+  - platform: template
+    name: "Position"
+    lambda: "return id(driver)->current_position;"
+    update_interval: 500ms
+    unit_of_measurement: "steps"
+    entity_category: DIAGNOSTIC
+  - platform: template
+    name: "Position (mm below home)"
+    lambda: "return id(steps_per_mm).state > 0 ? id(driver)->current_position / id(steps_per_mm).state : 0;"
+    update_interval: 500ms
+    accuracy_decimals: 1
+    unit_of_measurement: "mm"
+    entity_category: DIAGNOSTIC
+  - platform: template
+    name: "SG_RESULT"
+    lambda: "return id(driver)->read_register(SG_RESULT);"
+    update_interval: 1s
+    entity_category: DIAGNOSTIC
+
+text_sensor:
+  - platform: template
+    name: "Homed"
+    lambda: "return id(is_homed) ? std::string(\"yes\") : std::string(\"no — press Home\");"
+    update_interval: 1s
+    entity_category: DIAGNOSTIC

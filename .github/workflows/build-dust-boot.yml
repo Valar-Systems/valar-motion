@@ -1,0 +1,29 @@
+# Builds the customer Dust Boot example into a ready-to-flash factory.bin so it
+# can be installed from a browser (web.esphome.io) with no ESPHome/YAML needed.
+name: Build dust-boot
+
+on:
+  push:
+    branches: ['example/dust-boot']
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install esphome
+      - name: Compile
+        run: esphome compile examples/dust-boot/dust-boot.yaml
+      - name: Collect
+        run: |
+          mkdir -p dist
+          F=$(find . -path "*/.pioenvs/*/firmware.factory.bin" | head -1)
+          cp "$F" dist/dust-boot.factory.bin
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dust-boot-firmware
+          path: dist/*.bin
