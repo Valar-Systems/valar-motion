@@ -1,0 +1,232 @@
+(footprint "CONN_OSTVN02A150_OST"
+	(version 20241229)
+	(generator "pcbnew")
+	(generator_version "9.0")
+	(layer "F.Cu")
+	(tags "OSTVN02A150 ")
+	(property "Reference" "REF**"
+		(at 5.04 2.6 90)
+		(unlocked yes)
+		(layer "F.SilkS")
+		(effects
+		(font
+			(size 0.6 0.6)
+			(thickness 0.1)
+			(bold yes)
+		)
+		)
+	)
+	(property "Value" "OSTVN02A150"
+		(at 1.3 1.666)
+		(unlocked yes)
+		(layer "F.Fab")
+		(hide yes)
+		(effects
+		(font
+			(size 1 1)
+			(thickness 0.15)
+		)
+		)
+	)
+	(property "Datasheet" "OSTVN02A150"
+		(at 0 0 180)
+		(layer "F.Fab")
+		(hide yes)
+		(effects
+		(font
+			(size 1.27 1.27)
+			(thickness 0.15)
+		)
+		)
+	)
+	(property "Description" ""
+		(at 0 0 180)
+		(layer "F.Fab")
+		(hide yes)
+		(effects
+		(font
+			(size 1.27 1.27)
+			(thickness 0.15)
+		)
+		)
+	)
+	(property ki_fp_filters "CONN_OSTVN02A150_OST")
+	(units
+		(unit
+		(name "A")
+		(pins "1" "2")
+		)
+	)
+	(attr through_hole exclude_from_bom)
+	(duplicate_pad_numbers_are_jumpers no)
+	(fp_line
+		(start -1.601724 3.382599)
+		(end 4.341876 3.382599)
+		(stroke
+		(width 0.1524)
+		(type solid)
+		)
+		(layer "F.SilkS")
+	)
+	(fp_line
+		(start 4.341876 3.382599)
+		(end 4.341876 -3.577001)
+		(stroke
+		(width 0.1524)
+		(type solid)
+		)
+		(layer "F.SilkS")
+	)
+	(fp_line
+		(start -1.601724 -3.577001)
+		(end -1.601724 3.382599)
+		(stroke
+		(width 0.1524)
+		(type solid)
+		)
+		(layer "F.SilkS")
+	)
+	(fp_line
+		(start 4.341876 -3.577001)
+		(end -1.601724 -3.577001)
+		(stroke
+		(width 0.1524)
+		(type solid)
+		)
+		(layer "F.SilkS")
+	)
+	(fp_circle
+		(center -3.379724 0)
+		(end -2.998724 0)
+		(stroke
+		(width 0.508)
+		(type solid)
+		)
+		(fill no)
+		(layer "F.SilkS")
+	)
+	(fp_circle
+		(center -3.379724 0)
+		(end -2.998724 0)
+		(stroke
+		(width 0.508)
+		(type solid)
+		)
+		(fill no)
+		(layer "B.SilkS")
+	)
+	(fp_line
+		(start -1.728724 3.509599)
+		(end 4.468876 3.509599)
+		(stroke
+		(width 0.1524)
+		(type solid)
+		)
+		(layer "F.CrtYd")
+	)
+	(fp_line
+		(start 4.468876 3.509599)
+		(end 4.468876 -3.704001)
+		(stroke
+		(width 0.1524)
+		(type solid)
+		)
+		(layer "F.CrtYd")
+	)
+	(fp_line
+		(start -1.728724 -3.704001)
+		(end -1.728724 3.509599)
+		(stroke
+		(width 0.1524)
+		(type solid)
+		)
+		(layer "F.CrtYd")
+	)
+	(fp_line
+		(start 4.468876 -3.704001)
+		(end -1.728724 -3.704001)
+		(stroke
+		(width 0.1524)
+		(type solid)
+		)
+		(layer "F.CrtYd")
+	)
+	(fp_line
+		(start -1.474724 3.255599)
+		(end 4.214876 3.255599)
+		(stroke
+		(width 0.0254)
+		(type solid)
+		)
+		(layer "F.Fab")
+	)
+	(fp_line
+		(start 4.214876 3.255599)
+		(end 4.214876 -3.450001)
+		(stroke
+		(width 0.0254)
+		(type solid)
+		)
+		(layer "F.Fab")
+	)
+	(fp_line
+		(start -1.474724 -3.450001)
+		(end -1.474724 3.255599)
+		(stroke
+		(width 0.0254)
+		(type solid)
+		)
+		(layer "F.Fab")
+	)
+	(fp_line
+		(start 4.214876 -3.450001)
+		(end -1.474724 -3.450001)
+		(stroke
+		(width 0.0254)
+		(type solid)
+		)
+		(layer "F.Fab")
+	)
+	(fp_circle
+		(center 0 -1.905)
+		(end 0.381 -1.905)
+		(stroke
+		(width 0.508)
+		(type solid)
+		)
+		(fill no)
+		(layer "F.Fab")
+	)
+	(fp_text user "${REFERENCE}"
+		(at 0.46 1.5 90)
+		(unlocked yes)
+		(layer "F.Fab")
+		(effects
+		(font
+			(size 1 1)
+			(thickness 0.15)
+		)
+		)
+	)
+	(pad "1" thru_hole circle
+		(at 0 0)
+		(size 2 2)
+		(drill 1.2)
+		(layers "*.Cu" "*.Mask")
+		(remove_unused_layers no)
+		(net "USER_4{slash}END_2")
+		(pinfunction "1_1")
+		(pintype "unspecified")
+	)
+	(pad "2" thru_hole circle
+		(at 2.54 0)
+		(size 2 2)
+		(drill 1.2)
+		(layers "*.Cu" "*.Mask")
+		(remove_unused_layers no)
+		(net "GND")
+		(pinfunction "2_2")
+		(pintype "unspecified")
+	)
+	(embedded_fonts no)
+	)
