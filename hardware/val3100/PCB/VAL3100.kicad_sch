@@ -28087,7 +28087,7 @@
 				)
 			)
 		)
-		(property "Value" "AS5600"
+		(property "Value" "AS5600-ASOT"
 			(at 383.54 154.94 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -28109,7 +28109,7 @@
 				)
 			)
 		)
-		(property "Datasheet" "AS5600L-ASOM"
+		(property "Datasheet" "AS5600L-ASOT"
 			(at 363.22 162.56 0)
 			(hide yes)
 			(show_name no)
