@@ -1869,7 +1869,7 @@
 					)
 				)
 			)
-			(property "Footprint" "easyeda2kicad:F1812"
+			(property "Footprint" "BSMD1812-200-30V:F1812"
 				(at 0 -7.62 0)
 				(show_name no)
 				(do_not_autoplace no)
@@ -2002,7 +2002,7 @@
 					)
 				)
 			)
-			(property "Footprint" "easyeda2kicad:USB-C-SMD_TYPE-C-6PIN-2MD-073"
+			(property "Footprint" "USB-C-LCSC_C2765186:USB-C-SMD_TYPE-C-6PIN-2MD-073"
 				(at 0 -21.59 0)
 				(show_name no)
 				(do_not_autoplace no)
@@ -4194,7 +4194,7 @@
 					)
 				)
 			)
-			(property "Footprint" "easyeda2kicad:SOD-923_L0.8-W0.6-LS1.0-RD"
+			(property "Footprint" "ESD9L3-3ST5G:SOD-923_L0.8-W0.6-LS1.0-RD"
 				(at 0 -7.62 0)
 				(show_name no)
 				(do_not_autoplace no)
@@ -6269,7 +6269,7 @@
 					)
 				)
 			)
-			(property "Footprint" "easyeda2kicad:TSOT-23-5_L2.9-W1.6-P0.95-LS2.8-BL"
+			(property "Footprint" "RT9080-33GJ5:TSOT-23-5_L2.9-W1.6-P0.95-LS2.8-BL"
 				(at 0 -10.16 0)
 				(show_name no)
 				(do_not_autoplace no)
@@ -6669,7 +6669,7 @@
 					(justify left)
 				)
 			)
-			(property "Footprint" "SparkFun-Capacitor:C_0402_1005Metric"
+			(property "Footprint" "Capacitor_SMD:C_0402_1005Metric"
 				(at 0 -11.43 0)
 				(show_name no)
 				(do_not_autoplace no)
@@ -6855,7 +6855,7 @@
 					(justify left)
 				)
 			)
-			(property "Footprint" "SparkFun-Capacitor:C_0402_1005Metric"
+			(property "Footprint" "Capacitor_SMD:C_0402_1005Metric"
 				(at 0 -11.43 0)
 				(show_name no)
 				(do_not_autoplace no)
@@ -7041,7 +7041,7 @@
 					(justify left)
 				)
 			)
-			(property "Footprint" "SparkFun-Capacitor:C_0402_1005Metric"
+			(property "Footprint" "Capacitor_SMD:C_0402_1005Metric"
 				(at 0 -11.43 0)
 				(show_name no)
 				(do_not_autoplace no)
@@ -7227,7 +7227,7 @@
 					(justify left)
 				)
 			)
-			(property "Footprint" "SparkFun-Capacitor:C_0603_1608Metric"
+			(property "Footprint" "Capacitor_SMD:C_0603_1608Metric"
 				(at 0 -11.43 0)
 				(show_name no)
 				(do_not_autoplace no)
@@ -7931,7 +7931,7 @@
 					)
 				)
 			)
-			(property "Footprint" "SparkFun-Resistor:R_0402_1005Metric"
+			(property "Footprint" "Resistor_SMD:R_0402_1005Metric"
 				(at 0 -3.81 0)
 				(show_name no)
 				(do_not_autoplace no)
@@ -8131,7 +8131,7 @@
 					)
 				)
 			)
-			(property "Footprint" "SparkFun-Resistor:R_0402_1005Metric"
+			(property "Footprint" "Resistor_SMD:R_0402_1005Metric"
 				(at 0 -4.318 0)
 				(show_name no)
 				(do_not_autoplace no)
@@ -8325,7 +8325,7 @@
 					)
 				)
 			)
-			(property "Footprint" "easyeda2kicad:KEY-TH_TC-6615-4.5-160G"
+			(property "Footprint" "TC-6615-4.5-160G:KEY-TH_TC-6615-4.5-160G"
 				(at 0 -7.62 0)
 				(show_name no)
 				(do_not_autoplace no)
@@ -8541,7 +8541,7 @@
 					)
 				)
 			)
-			(property "Footprint" "easyeda2kicad:SW-SMD_L3.9-W3.0-P4.45"
+			(property "Footprint" "TS-1088-AR02016:SW-SMD_L3.9-W3.0-P4.45"
 				(at 0 -7.62 0)
 				(show_name no)
 				(do_not_autoplace no)
@@ -14707,7 +14707,7 @@
 				)
 			)
 		)
-		(property "Footprint" "easyeda2kicad:TSOT-23-5_L2.9-W1.6-P0.95-LS2.8-BL"
+		(property "Footprint" "RT9080-33GJ5:TSOT-23-5_L2.9-W1.6-P0.95-LS2.8-BL"
 			(at 176.53 264.16 0)
 			(hide yes)
 			(show_name no)

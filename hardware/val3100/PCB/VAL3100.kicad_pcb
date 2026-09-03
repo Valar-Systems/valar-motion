@@ -24978,6 +24978,350 @@
 			)
 		)
 	)
+	(footprint "MountingHole:MountingHole_3.2mm_M3_Pad"
+		(layer "F.Cu")
+		(uuid "80dd7fd8-f9ba-4342-adb9-ec8b0dd4868f")
+		(at -15.5 -15.5)
+		(descr "Mounting Hole 3.2mm, M3")
+		(tags "mounting hole 3.2mm m3")
+		(property "Reference" "H1"
+			(at 0 -4.2 0)
+			(layer "F.SilkS")
+			(hide yes)
+			(uuid "792c2f12-9c09-4773-9c4a-a90f92f65bc2")
+			(effects
+				(font
+					(size 1 1)
+					(thickness 0.15)
+				)
+			)
+		)
+		(property "Value" "MountingHole_3.2mm_M3_Pad"
+			(at 0 4.2 0)
+			(layer "F.Fab")
+			(hide yes)
+			(uuid "4bdad022-cc56-4956-a168-9a09a1912131")
+			(effects
+				(font
+					(size 1 1)
+					(thickness 0.15)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 0 0 0)
+			(layer "F.Fab")
+			(hide yes)
+			(uuid "682076b6-ebf5-4680-9f96-4fa4c0c61d16")
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Mounting hole, M3, NEMA 17 face pattern (31 mm)"
+			(at 0 0 0)
+			(layer "F.Fab")
+			(hide yes)
+			(uuid "09ba27b3-4102-45c5-8139-265887b2e1ae")
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(attr board_only exclude_from_pos_files exclude_from_bom)
+		(fp_circle
+			(center 0 0)
+			(end 3.2 0)
+			(stroke
+				(width 0.1)
+				(type default)
+			)
+			(fill no)
+			(layer "F.Fab")
+			(uuid "0a6d8a4f-e275-4300-8c73-5788c02837c3")
+		)
+		(fp_circle
+			(center 0 0)
+			(end 3.45 0)
+			(stroke
+				(width 0.05)
+				(type default)
+			)
+			(fill no)
+			(layer "F.CrtYd")
+			(uuid "d41482fd-7690-4d00-936c-0a714d3dd69d")
+		)
+		(pad "1" thru_hole circle
+			(at 0 0)
+			(size 6.4 6.4)
+			(drill 3.2)
+			(layers "*.Cu" "*.Mask")
+			(remove_unused_layers no)
+			(net "GND")
+			(uuid "24908649-49d3-4f13-a418-e87e951728aa")
+		)
+		(embedded_fonts no)
+	)
+	(footprint "MountingHole:MountingHole_3.2mm_M3_Pad"
+		(layer "F.Cu")
+		(uuid "de728ab8-458d-4ff8-8bdc-b7f86a56b892")
+		(at 15.5 -15.5)
+		(descr "Mounting Hole 3.2mm, M3")
+		(tags "mounting hole 3.2mm m3")
+		(property "Reference" "H2"
+			(at 0 -4.2 0)
+			(layer "F.SilkS")
+			(hide yes)
+			(uuid "bc11669d-748a-4515-90c1-64ec67f60cb5")
+			(effects
+				(font
+					(size 1 1)
+					(thickness 0.15)
+				)
+			)
+		)
+		(property "Value" "MountingHole_3.2mm_M3_Pad"
+			(at 0 4.2 0)
+			(layer "F.Fab")
+			(hide yes)
+			(uuid "f5b5b0b1-1efc-4e3b-a0a6-70057bf84881")
+			(effects
+				(font
+					(size 1 1)
+					(thickness 0.15)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 0 0 0)
+			(layer "F.Fab")
+			(hide yes)
+			(uuid "6542336a-1057-4488-9867-8ebd7e847557")
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Mounting hole, M3, NEMA 17 face pattern (31 mm)"
+			(at 0 0 0)
+			(layer "F.Fab")
+			(hide yes)
+			(uuid "60f52662-4a35-4253-8640-2d186c14d20f")
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(attr board_only exclude_from_pos_files exclude_from_bom)
+		(fp_circle
+			(center 0 0)
+			(end 3.2 0)
+			(stroke
+				(width 0.1)
+				(type default)
+			)
+			(fill no)
+			(layer "F.Fab")
+			(uuid "45e27e0a-086d-4ece-b030-fa1ea8063136")
+		)
+		(fp_circle
+			(center 0 0)
+			(end 3.45 0)
+			(stroke
+				(width 0.05)
+				(type default)
+			)
+			(fill no)
+			(layer "F.CrtYd")
+			(uuid "456590b7-b37a-40ff-a1fc-4212517be96c")
+		)
+		(pad "1" thru_hole circle
+			(at 0 0)
+			(size 6.4 6.4)
+			(drill 3.2)
+			(layers "*.Cu" "*.Mask")
+			(remove_unused_layers no)
+			(net "GND")
+			(uuid "cfc433f1-79fd-45f3-a1d5-5d47ff147ecb")
+		)
+		(embedded_fonts no)
+	)
+	(footprint "MountingHole:MountingHole_3.2mm_M3_Pad"
+		(layer "F.Cu")
+		(uuid "deb5d1da-814b-4451-bdd3-91258372f531")
+		(at -15.5 15.5)
+		(descr "Mounting Hole 3.2mm, M3")
+		(tags "mounting hole 3.2mm m3")
+		(property "Reference" "H3"
+			(at 0 -4.2 0)
+			(layer "F.SilkS")
+			(hide yes)
+			(uuid "325c5f21-cab5-4b29-acfa-7b3bba5d6edf")
+			(effects
+				(font
+					(size 1 1)
+					(thickness 0.15)
+				)
+			)
+		)
+		(property "Value" "MountingHole_3.2mm_M3_Pad"
+			(at 0 4.2 0)
+			(layer "F.Fab")
+			(hide yes)
+			(uuid "c20ccd78-a174-4e3a-bb67-39791de05144")
+			(effects
+				(font
+					(size 1 1)
+					(thickness 0.15)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 0 0 0)
+			(layer "F.Fab")
+			(hide yes)
+			(uuid "63156e34-7bb5-4aae-93c4-a76f84e240a4")
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Mounting hole, M3, NEMA 17 face pattern (31 mm)"
+			(at 0 0 0)
+			(layer "F.Fab")
+			(hide yes)
+			(uuid "b3f26916-b087-4992-98ca-013a70b22e3f")
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(attr board_only exclude_from_pos_files exclude_from_bom)
+		(fp_circle
+			(center 0 0)
+			(end 3.2 0)
+			(stroke
+				(width 0.1)
+				(type default)
+			)
+			(fill no)
+			(layer "F.Fab")
+			(uuid "0a02f618-0f23-4ea8-9049-7102502e85f7")
+		)
+		(fp_circle
+			(center 0 0)
+			(end 3.45 0)
+			(stroke
+				(width 0.05)
+				(type default)
+			)
+			(fill no)
+			(layer "F.CrtYd")
+			(uuid "8993da13-2245-43b2-a23f-8e4ac02a2f5d")
+		)
+		(pad "1" thru_hole circle
+			(at 0 0)
+			(size 6.4 6.4)
+			(drill 3.2)
+			(layers "*.Cu" "*.Mask")
+			(remove_unused_layers no)
+			(net "GND")
+			(uuid "a4eac612-55be-4454-8923-c9cc4e470f82")
+		)
+		(embedded_fonts no)
+	)
+	(footprint "MountingHole:MountingHole_3.2mm_M3_Pad"
+		(layer "F.Cu")
+		(uuid "0fd709b9-f3d6-4f11-a40c-1c899f2b3188")
+		(at 15.5 15.5)
+		(descr "Mounting Hole 3.2mm, M3")
+		(tags "mounting hole 3.2mm m3")
+		(property "Reference" "H4"
+			(at 0 -4.2 0)
+			(layer "F.SilkS")
+			(hide yes)
+			(uuid "730aeeda-3aac-4942-bb24-6cd90f17fdab")
+			(effects
+				(font
+					(size 1 1)
+					(thickness 0.15)
+				)
+			)
+		)
+		(property "Value" "MountingHole_3.2mm_M3_Pad"
+			(at 0 4.2 0)
+			(layer "F.Fab")
+			(hide yes)
+			(uuid "e62923ce-6c7b-4fff-94a1-dc0a52bcb991")
+			(effects
+				(font
+					(size 1 1)
+					(thickness 0.15)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 0 0 0)
+			(layer "F.Fab")
+			(hide yes)
+			(uuid "0f3283b3-8dd8-4cb6-bf4e-61b21cc7ee3c")
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Mounting hole, M3, NEMA 17 face pattern (31 mm)"
+			(at 0 0 0)
+			(layer "F.Fab")
+			(hide yes)
+			(uuid "7257d056-4ea7-40d2-989e-c9ae8f77124a")
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(attr board_only exclude_from_pos_files exclude_from_bom)
+		(fp_circle
+			(center 0 0)
+			(end 3.2 0)
+			(stroke
+				(width 0.1)
+				(type default)
+			)
+			(fill no)
+			(layer "F.Fab")
+			(uuid "3f5c6e19-1d23-4197-9c24-080286c76e8c")
+		)
+		(fp_circle
+			(center 0 0)
+			(end 3.45 0)
+			(stroke
+				(width 0.05)
+				(type default)
+			)
+			(fill no)
+			(layer "F.CrtYd")
+			(uuid "73406ea3-0b58-4f51-9772-d7d2ce4261fb")
+		)
+		(pad "1" thru_hole circle
+			(at 0 0)
+			(size 6.4 6.4)
+			(drill 3.2)
+			(layers "*.Cu" "*.Mask")
+			(remove_unused_layers no)
+			(net "GND")
+			(uuid "0fc45043-275e-455e-9db1-440ec0a20e6d")
+		)
+		(embedded_fonts no)
+	)
 	(gr_rect
 		(start -1.65 3.425)
 		(end 1.949999 7.024999)
@@ -26055,26 +26399,6 @@
 		(uuid "26e17d17-651f-4dc7-828a-86aa07c31218")
 	)
 	(via
-		(at 15.5 15.5)
-		(size 6.4)
-		(drill 3.2)
-		(layers "F.Cu" "B.Cu")
-		(locked yes)
-		(free yes)
-		(capping no)
-		(covering
-			(front no)
-			(back no)
-		)
-		(plugging
-			(front no)
-			(back no)
-		)
-		(filling no)
-		(net "GND")
-		(uuid "277926e5-570c-47a5-a08e-84a60b3de1da")
-	)
-	(via
 		(at -16.65 3.375)
 		(size 0.6)
 		(drill 0.3)
@@ -26129,26 +26453,6 @@
 		(filling no)
 		(net "GND")
 		(uuid "42369036-d4ae-4484-879b-b42a3fef48e0")
-	)
-	(via
-		(at -15.5 15.5)
-		(size 6.4)
-		(drill 3.2)
-		(layers "F.Cu" "B.Cu")
-		(locked yes)
-		(free yes)
-		(capping no)
-		(covering
-			(front no)
-			(back no)
-		)
-		(plugging
-			(front no)
-			(back no)
-		)
-		(filling no)
-		(net "GND")
-		(uuid "4542ea4f-fc0d-4e92-9dcb-4fc6ac23037e")
 	)
 	(via
 		(at 5.25 19.45)
@@ -26284,26 +26588,6 @@
 		(uuid "5efdda27-4896-4c79-8e86-422a9da536d1")
 	)
 	(via
-		(at -15.5 -15.5)
-		(size 6.4)
-		(drill 3.2)
-		(layers "F.Cu" "B.Cu")
-		(locked yes)
-		(free yes)
-		(capping no)
-		(covering
-			(front no)
-			(back no)
-		)
-		(plugging
-			(front no)
-			(back no)
-		)
-		(filling no)
-		(net "GND")
-		(uuid "60dee50b-655e-4d72-a4f5-512f9f912d0e")
-	)
-	(via
 		(at -6.55 17.025)
 		(size 0.6)
 		(drill 0.3)
@@ -26359,26 +26643,6 @@
 		(filling no)
 		(net "GND")
 		(uuid "717cc2ab-d6ed-4714-ac41-6a71ff9564cd")
-	)
-	(via
-		(at 15.5 -15.5)
-		(size 6.4)
-		(drill 3.2)
-		(layers "F.Cu" "B.Cu")
-		(locked yes)
-		(free yes)
-		(capping no)
-		(covering
-			(front no)
-			(back no)
-		)
-		(plugging
-			(front no)
-			(back no)
-		)
-		(filling no)
-		(net "GND")
-		(uuid "71c70953-2154-4563-b613-e6c82f538ef2")
 	)
 	(via
 		(at -12.5 8.4)
