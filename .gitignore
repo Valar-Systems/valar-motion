@@ -12,3 +12,4 @@ __pycache__/
 fp-info-cache
 *.lck
 ~*
+.history/          # KiCad 10 Local History (nested git repo, per-machine)
