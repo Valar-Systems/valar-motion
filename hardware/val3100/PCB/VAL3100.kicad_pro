@@ -60,7 +60,16 @@
           "width": 0.0
         }
       ],
-      "drc_exclusions": [],
+      "drc_exclusions": [
+        [
+          "courtyards_overlap|3325000|25875000|8640ffc1-32d7-45c2-91b5-e99d789143f9|f1959e8b-b9e2-4f4e-89ee-72f9cdfd8db1",
+          ""
+        ],
+        [
+          "courtyards_overlap|825000|26135000|0c39f17c-d5d4-44d2-9144-e4d449e6ee38|8640ffc1-32d7-45c2-91b5-e99d789143f9",
+          ""
+        ]
+      ],
       "meta": {
         "version": 2
       },
@@ -588,7 +597,7 @@
       "gencad": "",
       "idf": "",
       "netlist": "",
-      "plot": "G:/My Drive/Products/VAL3100/6-27-26/PCB/",
+      "plot": "G:/My Drive/Products/VAL3100/9-18-26/",
       "pos_files": "G:/My Drive/Products/VAL-3000/PCB/12-3-25/",
       "specctra_dsn": "",
       "step": "MorningRope_3D.step",
@@ -603,7 +612,7 @@
       "method": 0,
       "sort_order": 0
     },
-    "bom_export_filename": "G:\\My Drive\\Products\\VAL3100\\6-27-26\\VAL3100.csv",
+    "bom_export_filename": "G:\\My Drive\\Products\\VAL3100\\9-18-26\\VAL3100.csv",
     "bom_fmt_presets": [],
     "bom_fmt_settings": {
       "field_delimiter": ",",
