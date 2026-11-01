@@ -34,7 +34,9 @@ esphome:
     - priority: -100
       then:
         - lambda: |-
+            #if ESPHOME_VERSION_CODE < VERSION_CODE(2026, 9, 0)
             id(sntp_time)->set_timezone(id(tz_text).state);
+            #endif
             id(sun_sun)->set_latitude(id(global_latitude));
             id(sun_sun)->set_longitude(id(global_longitude));
 
@@ -125,6 +127,10 @@ datetime:
 
 # POSIX TZ string, browser-editable and persisted; applied immediately and
 # re-applied in on_boot. e.g. "PST8PDT,M3.2.0,M11.1.0", "CET-1CEST,M3.5.0,M10.5.0/3".
+# ESPHome 2026.9.0 removed the on-device TZ string parser and set_timezone()
+# (esphome/esphome#18383). On those versions this text is kept but not applied;
+# the timezone comes from Home Assistant 2026.3+ over the API instead, and stays
+# UTC without it.
 text:
   - platform: template
     name: "Timezone"
@@ -138,7 +144,12 @@ text:
     min_length: 0
     max_length: 64
     set_action:
-      - lambda: 'id(sntp_time)->set_timezone(x);'
+      - lambda: |-
+          #if ESPHOME_VERSION_CODE < VERSION_CODE(2026, 9, 0)
+          id(sntp_time)->set_timezone(x);
+          #else
+          ESP_LOGW("schedule", "Timezone text is ignored on ESPHome 2026.9+; Home Assistant pushes the timezone over the API");
+          #endif
 
 # Location + sun-schedule offsets. Lat/Long feed the sun component; offsets shift
 # the open/close moments relative to sunrise/sunset (negative = before).
