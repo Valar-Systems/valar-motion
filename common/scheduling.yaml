@@ -34,7 +34,7 @@ esphome:
     - priority: -100
       then:
         - lambda: |-
-            id(sntp_time)->set_timezone(id(tz_text).state);
+            id(apply_timezone)->execute(id(tz_text).state);
             id(sun_sun)->set_latitude(id(global_latitude));
             id(sun_sun)->set_longitude(id(global_longitude));
 
@@ -47,11 +47,134 @@ globals:
   # re-evaluation on boot and whenever location/offsets change).
   - { id: global_sun_last_desired, type: int,   restore_value: no,  initial_value: '-1' }
 
-# SNTP clock (UTC); local time comes from the runtime-set Timezone below.
+# SNTP clock (UTC); local time comes from the Timezone text below, applied by
+# the apply_timezone script.
 time:
   - platform: sntp
     id: sntp_time
     timezone: "UTC0"
+
+# Applies a POSIX TZ string (the Timezone text below) as the device timezone.
+# ESPHome 2026.10 removed the on-device parser behind set_timezone(); this port
+# of aioesphomeapi's posix_tz.parse_posix_tz (MIT) fills the same ParsedTimezone
+# and hands it to set_global_tz(), so it behaves the same on old and new ESPHome:
+# an empty string means UTC, and a string it can't parse is logged and ignored
+# (the previous timezone stays).
+script:
+  - id: apply_timezone
+    parameters:
+      tz: string
+    then:
+      - lambda: |-
+          using esphome::time::DSTRule;
+          using esphome::time::DSTRuleType;
+          const char *s = tz.c_str();
+          const size_t n = tz.size();
+          size_t i = 0;
+          auto digit = [&](size_t k) { return k < n && s[k] >= '0' && s[k] <= '9'; };
+          auto alpha = [&](size_t k) {
+            return k < n && ((s[k] >= 'a' && s[k] <= 'z') || (s[k] >= 'A' && s[k] <= 'Z'));
+          };
+          // Unsigned integer; capped so a garbage string can't overflow.
+          auto number = [&](int32_t &v) {
+            if (!digit(i)) return false;
+            v = 0;
+            while (digit(i)) {
+              v = v * 10 + (s[i++] - '0');
+              if (v > 99999) return false;
+            }
+            return true;
+          };
+          // Zone abbreviation: 3+ letters, or <...> (e.g. "<+07>").
+          auto name = [&]() {
+            if (i < n && s[i] == '<') {
+              while (++i < n && s[i] != '>') {}
+              if (i >= n) return false;
+              ++i;
+              return true;
+            }
+            const size_t start = i;
+            while (alpha(i)) ++i;
+            return i - start >= 3;
+          };
+          // [+|-]hh[:mm[:ss]] in seconds (POSIX sign: positive = west of UTC).
+          auto offset = [&](int32_t &v) {
+            int32_t sign = 1, h = 0, m = 0, sec = 0;
+            if (i < n && (s[i] == '-' || s[i] == '+')) sign = (s[i++] == '-') ? -1 : 1;
+            if (!number(h)) return false;
+            if (i < n && s[i] == ':') {
+              ++i;
+              if (!number(m)) return false;
+              if (i < n && s[i] == ':') {
+                ++i;
+                if (!number(sec)) return false;
+              }
+            }
+            v = sign * (h * 3600 + m * 60 + sec);
+            return true;
+          };
+          // Mm.w.d, Jn or n, each with an optional /time (default 02:00).
+          auto rule = [&](DSTRule &r) {
+            int32_t v = 0;
+            if (i < n && (s[i] == 'M' || s[i] == 'm')) {
+              ++i;
+              r.type = DSTRuleType::MONTH_WEEK_DAY;
+              if (!number(v) || v < 1 || v > 12) return false;
+              r.month = v;
+              if (i >= n || s[i++] != '.' || !number(v) || v < 1 || v > 5) return false;
+              r.week = v;
+              if (i >= n || s[i++] != '.' || !number(v) || v > 6) return false;
+              r.day_of_week = v;
+            } else if (i < n && (s[i] == 'J' || s[i] == 'j')) {
+              ++i;
+              r.type = DSTRuleType::JULIAN_NO_LEAP;
+              if (!number(v) || v < 1 || v > 365) return false;
+              r.day = v;
+            } else if (digit(i)) {
+              r.type = DSTRuleType::DAY_OF_YEAR;
+              if (!number(v) || v > 365) return false;
+              r.day = v;
+            } else {
+              return false;
+            }
+            r.time_seconds = 7200;
+            if (i < n && s[i] == '/') {
+              ++i;
+              return offset(r.time_seconds);
+            }
+            return true;
+          };
+
+          esphome::time::ParsedTimezone p{};
+          bool ok = true;
+          if (n > 0) {
+            ok = name() && (digit(i) || (i < n && (s[i] == '+' || s[i] == '-'))) &&
+                 offset(p.std_offset_seconds);
+            // A DST name may follow; anything else after the offset is ignored.
+            if (ok && i < n && s[i] == ',') {
+              ok = false;
+            } else if (ok && (alpha(i) || (i < n && s[i] == '<'))) {
+              ok = name();
+              if (ok) {
+                if (digit(i) || (i < n && (s[i] == '+' || s[i] == '-'))) {
+                  ok = offset(p.dst_offset_seconds);
+                } else {
+                  p.dst_offset_seconds = p.std_offset_seconds - 3600;
+                }
+              }
+              // DST name without rules = no DST; with rules, both are required.
+              if (ok && i < n && s[i] == ',') {
+                ++i;
+                ok = rule(p.dst_start) && i < n && s[i++] == ',' && rule(p.dst_end);
+              }
+            }
+          }
+          if (!ok) {
+            ESP_LOGW("schedule", "Timezone \"%s\" not understood; keeping the previous one", s);
+            return;
+          }
+          esphome::time::set_global_tz(p);
+          ESP_LOGD("schedule", "Timezone set: \"%s\"", s);
 
 # Sunrise/sunset from the device location (pushed in from the Latitude/Longitude
 # numbers below and re-applied in on_boot).
@@ -138,7 +261,9 @@ text:
     min_length: 0
     max_length: 64
     set_action:
-      - lambda: 'id(sntp_time)->set_timezone(x);'
+      - script.execute:
+          id: apply_timezone
+          tz: !lambda 'return x;'
 
 # Location + sun-schedule offsets. Lat/Long feed the sun component; offsets shift
 # the open/close moments relative to sunrise/sunset (negative = before).
