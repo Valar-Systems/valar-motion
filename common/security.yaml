@@ -1,0 +1,226 @@
+# =============================================================================
+# Valar Motion — security add-on (OPT-IN)
+# =============================================================================
+#
+# Locks a unit down once it's paired. Every key or password is created on the
+# unit itself or chosen by the customer; nothing is baked into the firmware and
+# Valar keeps no records (valar-motion #8). Include it next to the core:
+#
+#   packages:
+#     core:     !include ../../common/valar-core.yaml
+#     security: !include ../../common/security.yaml
+#
+# What it does:
+#   - API encryption with no key in the firmware. Home Assistant (2025.8+)
+#     generates a key and sets it on the unit the first time it connects; from
+#     then on only that key works on the API. No customer action. (A native OTA
+#     upload with that key is also accepted, without the web password.)
+#   - Optional web login, chosen on the page (Security group) and saved on the
+#     unit; it takes effect at the next restart. The native OTA password follows
+#     it immediately. The login is what protects firmware uploads: without it,
+#     anyone on the network can open the page (and its /update) or upload over
+#     native OTA. With no login the OTA password is empty; ESPHome 2026.10 still
+#     runs the password exchange, so uploaders must send an empty password (an
+#     ESPHome build of a config that includes this file does).
+#   - security_factory_reset: clears the API key, the web login (and with it the
+#     OTA password) and Wi-Fi, then restarts. Calibration and settings are kept.
+#
+# ---- CONTRACT --------------------------------------------------------------
+# A product with MQTT must keep the two Web Login texts off MQTT (state_topic:
+# null), or anyone on the broker could set the login and the OTA password.
+# The product wires security_factory_reset to its own physical gesture (Ropener:
+# hold the Wi-Fi button 15–30 s) and gives its own feedback. Home Assistant then
+# shows a card for the unit ("Reconfigure": the device disabled transport
+# encryption); confirming it, one click and nothing to type, re-keys the unit.
+# =============================================================================
+
+api:
+  encryption: {}
+
+ota:
+  - id: !extend ota_native
+    # Compiles the password check; the real password is set at runtime from the
+    # web login (on_boot below and the password's set_action).
+    password: ""
+
+web_server:
+  # Compiles the login check. The placeholder is never live: on_boot (priority
+  # 600) runs before the web server registers its handlers (page and events at
+  # 249, /update at 250) and replaces it with the saved login, or with no login.
+  # The captive portal (setup hotspot only) is unauthenticated by design. Digest,
+  # not basic: the password itself isn't sent (it is also the OTA password),
+  # though ESPHome doesn't stop a captured request from being replayed.
+  auth:
+    type: digest
+    username: "replaced-at-boot"
+    password: "replaced-at-boot"
+  sorting_groups:
+    - { id: group_security, name: "Security", sorting_weight: 50 }
+
+globals:
+  # The login as saved from the page...
+  - { id: sec_web_user, type: std::string, restore_value: yes, max_restore_data_length: 32, initial_value: '""' }
+  - { id: sec_web_pass, type: std::string, restore_value: yes, max_restore_data_length: 63, initial_value: '""' }
+  # ...and the copy the web server uses until the next restart. Set once at
+  # boot and never changed: the web server keeps pointers into these strings.
+  - { id: sec_active_user, type: std::string, restore_value: no, initial_value: '""' }
+  - { id: sec_active_pass, type: std::string, restore_value: no, initial_value: '""' }
+
+esphome:
+  on_boot:
+    - priority: 600.0
+      then:
+        - lambda: |-
+            const bool on = !id(sec_web_user).empty() && !id(sec_web_pass).empty();
+            id(sec_active_user) = on ? id(sec_web_user) : std::string();
+            id(sec_active_pass) = on ? id(sec_web_pass) : std::string();
+            auto *ws = esphome::web_server_base::global_web_server_base;
+            // A null username turns the check off; an empty one would not.
+            ws->set_auth_username(on ? id(sec_active_user).c_str() : nullptr);
+            ws->set_auth_password(on ? id(sec_active_pass).c_str() : nullptr);
+            id(ota_native)->set_auth_password(id(sec_active_pass));
+            ESP_LOGI("security", "Web login %s", on ? "on" : "off");
+    - priority: -100
+      then:
+        - component.update: sec_web_user_text
+        - component.update: sec_web_pass_text
+        - component.update: sec_login_status
+
+script:
+  # Called after the saved login changes: the OTA password follows at once, the
+  # web login at the next restart (the status says which).
+  - id: sec_login_changed
+    then:
+      - lambda: |-
+          const bool on = !id(sec_web_user).empty() && !id(sec_web_pass).empty();
+          id(ota_native)->set_auth_password(on ? id(sec_web_pass) : std::string());
+          ESP_LOGI("security", "Web login saved (%s, applies after restart); OTA password %s now",
+                   on ? "on" : "off", on ? "set" : "cleared");
+          // Persist now, not at the next flash write (up to a minute later), so
+          // an unplug can't lose a new login or bring back a replaced one.
+          sec_web_user->update();
+          sec_web_pass->update();
+          global_preferences->sync();
+      - component.update: sec_web_user_text
+      - component.update: sec_web_pass_text
+      - component.update: sec_login_status
+
+  # The "forgot it" path. Products call this from their own physical gesture.
+  - id: security_factory_reset
+    mode: single
+    then:
+      - logger.log:
+          level: WARN
+          format: "Security reset: clearing the API key, web login and Wi-Fi (calibration and settings are kept)"
+      - lambda: |-
+          if (!esphome::api::global_api_server->clear_noise_psk(true))
+            ESP_LOGE("security", "Couldn't clear the API key");
+          id(sec_web_user) = "";
+          id(sec_web_pass) = "";
+          id(ota_native)->set_auth_password("");
+          esphome::wifi::global_wifi_component->save_wifi_sta("", "");
+          esphome::wifi::global_wifi_component->clear_sta();
+      # Let the key clear apply; safe_reboot() then saves the globals and syncs
+      # preferences on shutdown (the explicit sync is belt and braces).
+      - delay: 1s
+      - lambda: |-
+          global_preferences->sync();
+          App.safe_reboot();
+
+text:
+  - platform: template
+    name: "Web Login Username"
+    id: sec_web_user_text
+    icon: "mdi:account-lock"
+    entity_category: CONFIG
+    web_server: { sorting_weight: 1, sorting_group_id: group_security }
+    mode: text
+    max_length: 32
+    update_interval: never
+    lambda: 'return id(sec_web_user);'
+    set_action:
+      # Printable ASCII without " or \ : the browser's login can't match others,
+      # and the only way back from a login nobody can type is the full reset.
+      - if:
+          condition:
+            lambda: |-
+              for (char c : x)
+                if (c < 0x20 || c > 0x7E || c == '"' || c == '\\') return false;
+              return true;
+          then:
+            - globals.set: { id: sec_web_user, value: !lambda "return x;" }
+            - script.execute: sec_login_changed
+          else:
+            - logger.log:
+                level: WARN
+                format: "Web Login Username not saved: use letters, digits and symbols, without quotes or backslashes"
+            - component.update: sec_web_user_text
+  # Write-only: Home Assistant and MQTT see "(saved)", never the password (the
+  # web page masks password texts itself).
+  - platform: template
+    name: "Web Login Password"
+    id: sec_web_pass_text
+    icon: "mdi:form-textbox-password"
+    entity_category: CONFIG
+    web_server: { sorting_weight: 2, sorting_group_id: group_security }
+    mode: password
+    max_length: 63
+    update_interval: never
+    lambda: 'return {id(sec_web_pass).empty() ? std::string() : std::string("(saved)")};'
+    set_action:
+      - if:
+          condition:
+            lambda: |-
+              if (x == "(saved)") return false;   // our own placeholder echoed back
+              for (char c : x)
+                if (c < 0x20 || c > 0x7E) return false;   // printable ASCII only
+              return true;
+          then:
+            - globals.set: { id: sec_web_pass, value: !lambda "return x;" }
+            - script.execute: sec_login_changed
+          else:
+            - if:
+                condition:
+                  lambda: 'return x != "(saved)";'
+                then:
+                  - logger.log:
+                      level: WARN
+                      format: "Web Login Password not saved: use letters, digits and symbols only"
+            - component.update: sec_web_pass_text
+
+text_sensor:
+  # Off / On / On after restart / Off after restart / On (changes apply after
+  # restart). Use the Restart button (Diagnostics) to apply.
+  - platform: template
+    name: "Web Login"
+    id: sec_login_status
+    icon: "mdi:shield-lock-outline"
+    entity_category: DIAGNOSTIC
+    web_server: { sorting_weight: 3, sorting_group_id: group_security }
+    update_interval: never
+    lambda: |-
+      const bool saved = !id(sec_web_user).empty() && !id(sec_web_pass).empty();
+      const bool active = !id(sec_active_user).empty();
+      if (!saved && !active) return {"Off"};
+      if (saved && !active) return {"On after restart"};
+      if (!saved && active) return {"Off after restart"};
+      if (id(sec_web_user) == id(sec_active_user) && id(sec_web_pass) == id(sec_active_pass)) return {"On"};
+      return {"On (changes apply after restart)"};
+  # Whether a key has been set (by Home Assistant, at its first connection).
+  # Never shows the key.
+  - platform: template
+    name: "API Encryption"
+    id: sec_api_status
+    icon: "mdi:key-chain-variant"
+    entity_category: DIAGNOSTIC
+    web_server: { sorting_weight: 4, sorting_group_id: group_security }
+    update_interval: 5s
+    lambda: |-
+      return {esphome::api::global_api_server->get_noise_ctx().has_psk()
+                  ? std::string("Key set") : std::string("No key yet")};
+    filters:
+      - lambda: |-
+          static std::string last;
+          if (x == last) return {};
+          last = x;
+          return x;
