@@ -129,6 +129,7 @@ api:              # no encryption key -> discoverable/adoptable out of the box
 # powers the "Update Firmware (GitHub)" button below (pull latest release asset).
 ota:
   - platform: esphome
+    id: ota_native   # the opt-in security add-on sets its password at runtime
   # A refused or failed GitHub update reports why on the "Firmware Update"
   # status (Diagnostics) instead of only in the log. Every failure leaves the
   # running firmware untouched: the image is written to the other app slot and
