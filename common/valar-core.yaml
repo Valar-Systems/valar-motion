@@ -129,21 +129,14 @@ api:              # no encryption key -> discoverable/adoptable out of the box
 # powers the "Update Firmware (GitHub)" button below (pull latest release asset).
 ota:
   - platform: esphome
-  # Each step of a GitHub update is reported to the "Firmware Update" status
-  # (Diagnostics), so a refused or failed update says why on the page instead of
-  # only in the log. Every failure leaves the running firmware untouched: the
-  # image is written to the other app slot and only booted after a complete,
-  # checksum-verified download.
+  # A refused or failed GitHub update reports why on the "Firmware Update"
+  # status (Diagnostics) instead of only in the log. Every failure leaves the
+  # running firmware untouched: the image is written to the other app slot and
+  # only booted after a complete, checksum-verified download. There is no
+  # progress: the download blocks the loop that sends state to the page and
+  # Home Assistant, and a successful one ends in a restart (see the button).
   - platform: http_request
     id: ota_github
-    on_begin:
-      - text_sensor.template.publish: { id: fw_update_status, state: "Downloading..." }
-    on_progress:
-      - text_sensor.template.publish:
-          id: fw_update_status
-          state: !lambda 'char b[24]; snprintf(b, sizeof(b), "Downloading %.0f%%", x); return std::string(b);'
-    on_end:
-      - text_sensor.template.publish: { id: fw_update_status, state: "Installed - restarting" }
     on_error:
       - text_sensor.template.publish:
           id: fw_update_status
@@ -397,6 +390,12 @@ button:
     entity_category: DIAGNOSTIC
     on_press:
       - logger.log: "Checking GitHub for the latest firmware..."
+      # Say so before the download starts: it blocks the loop that sends state
+      # to the page and Home Assistant, so give the loop a moment to send this.
+      - text_sensor.template.publish:
+          id: fw_update_status
+          state: "Updating… the unit will restart when done"
+      - delay: 500ms
       - ota.http_request.flash:
           md5_url: https://github.com/${ota_repo}/releases/latest/download/${ota_asset}.ota.bin.md5
           url: https://github.com/${ota_repo}/releases/latest/download/${ota_asset}.ota.bin
@@ -421,9 +420,9 @@ text_sensor:
     entity_category: DIAGNOSTIC
     web_server: { sorting_weight: 6, sorting_group_id: group_diagnostics }
     update_interval: never
-  # Result of the last "Update Firmware (GitHub)" press (see ota_github): Idle,
-  # Downloading N%, Installed - restarting, or Failed: <why>. Published only by
-  # those events, never polled.
+  # Last "Update Firmware (GitHub)" press: Idle, Updating… (until the restart),
+  # or Failed: <why> (see ota_github). Published only by those events, never
+  # polled.
   - platform: template
     name: "Firmware Update"
     id: fw_update_status
