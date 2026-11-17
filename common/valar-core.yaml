@@ -107,6 +107,9 @@ esphome:
         - text_sensor.template.publish:
             id: board_text
             state: "${board_id}"
+        - text_sensor.template.publish:
+            id: fw_update_status
+            state: "Idle"
 
 esp32:
   board: ${esp_board}
@@ -126,7 +129,36 @@ api:              # no encryption key -> discoverable/adoptable out of the box
 # powers the "Update Firmware (GitHub)" button below (pull latest release asset).
 ota:
   - platform: esphome
+  # Each step of a GitHub update is reported to the "Firmware Update" status
+  # (Diagnostics), so a refused or failed update says why on the page instead of
+  # only in the log. Every failure leaves the running firmware untouched: the
+  # image is written to the other app slot and only booted after a complete,
+  # checksum-verified download.
   - platform: http_request
+    id: ota_github
+    on_begin:
+      - text_sensor.template.publish: { id: fw_update_status, state: "Downloading..." }
+    on_progress:
+      - text_sensor.template.publish:
+          id: fw_update_status
+          state: !lambda 'char b[24]; snprintf(b, sizeof(b), "Downloading %.0f%%", x); return std::string(b);'
+    on_end:
+      - text_sensor.template.publish: { id: fw_update_status, state: "Installed - restarting" }
+    on_error:
+      - text_sensor.template.publish:
+          id: fw_update_status
+          # x = error code. 0x10/0x12 are http_request's own: the checksum or the
+          # image couldn't be fetched. A certificate that fails verification lands
+          # here too (it fails the first request, the checksum), indistinguishable
+          # by code from no internet -- the exact TLS error is in the log.
+          state: !lambda |-
+            switch (x) {
+              case 0x10: return std::string("Failed: couldn't get the checksum from GitHub (no internet, or certificate not verified). Firmware unchanged.");
+              case 0x12: return std::string("Failed: couldn't download from GitHub (no internet, or certificate not verified). Firmware unchanged.");
+              case 0x11: return std::string("Failed: bad update URL. Firmware unchanged.");
+              case ota::OTA_RESPONSE_ERROR_MD5_MISMATCH: return std::string("Failed: download didn't match its checksum. Firmware unchanged.");
+              default: { char b[48]; snprintf(b, sizeof(b), "Failed (error 0x%02X). Firmware unchanged.", x); return std::string(b); }
+            }
 
 # REQUIRED for http_request OTA to survive a power loss: ESP-IDF app-rollback
 # boots a freshly-OTA'd image as PENDING_VERIFY and reverts it on the next reset
@@ -134,11 +166,17 @@ ota:
 # (and adds boot-loop recovery). Without it, GitHub-OTA updates silently revert.
 safe_mode:
 
-# HTTP client for the GitHub-OTA button. verify_ssl off (no bundled CA); larger
-# buffers because GitHub 302-redirects to a long signed CDN URL that overflows
-# the 512-byte default ("Out of buffer"); generous timeout for the ~1 MB image.
+# HTTP client for the GitHub-OTA button. verify_ssl ON: the checksum and the
+# image are only accepted from a server whose certificate chains to a CA in
+# ESP-IDF's CMN bundle -- which every build already compiled in, so this costs
+# ~144 B. Both hops of the download verify against it (measured 2026-11: github.com
+# -> USERTrust ECC; release-assets.githubusercontent.com -> ISRG Root X1).
+# Without it the download was unauthenticated (md5 comes from the same place).
+# Larger buffers because GitHub 302-redirects to a long signed CDN URL that
+# overflows the 512-byte default ("Out of buffer"); generous timeout for the
+# ~1 MB image.
 http_request:
-  verify_ssl: false
+  verify_ssl: true
   timeout: 10min
   buffer_size_rx: 4096
   buffer_size_tx: 4096
@@ -382,6 +420,16 @@ text_sensor:
     icon: "mdi:developer-board"
     entity_category: DIAGNOSTIC
     web_server: { sorting_weight: 6, sorting_group_id: group_diagnostics }
+    update_interval: never
+  # Result of the last "Update Firmware (GitHub)" press (see ota_github): Idle,
+  # Downloading N%, Installed - restarting, or Failed: <why>. Published only by
+  # those events, never polled.
+  - platform: template
+    name: "Firmware Update"
+    id: fw_update_status
+    icon: "mdi:update"
+    entity_category: DIAGNOSTIC
+    web_server: { sorting_weight: 7.1, sorting_group_id: group_diagnostics }
     update_interval: never
   - platform: wifi_info
     ip_address:
